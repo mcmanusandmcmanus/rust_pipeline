@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import matplotlib
 
@@ -33,6 +33,7 @@ from sklearn.metrics import (
     accuracy_score,
     classification_report,
     f1_score,
+    recall_score,
     mean_absolute_error,
     mean_squared_error,
     r2_score,
@@ -153,13 +154,26 @@ def train_apd(
 
     X = apd_df[APD_NUMERIC + APD_CATEGORICAL]
     y = apd_df["report_written"]
-    X_train, X_test, y_train, y_test = train_test_split(
+    X_temp, X_test, y_temp, y_test = train_test_split(
         X,
         y,
         test_size=0.2,
         stratify=y,
         random_state=seed,
     )
+    X_train, X_val, y_train, y_val = train_test_split(
+        X_temp,
+        y_temp,
+        test_size=0.25,
+        stratify=y_temp,
+        random_state=seed,
+    )
+
+    splits = {
+        "train": (X_train, y_train),
+        "validation": (X_val, y_val),
+        "test": (X_test, y_test),
+    }
 
     logit_model = Pipeline(
         steps=[
@@ -199,8 +213,20 @@ def train_apd(
     logit_model.fit(X_train, y_train)
     xgb_model.fit(X_train, y_train)
 
-    logit_metrics = evaluate_classifier(logit_model, X_test, y_test, artifacts / "apd_roc_logit.png", "Logistic", seed)
-    xgb_metrics = evaluate_classifier(xgb_model, X_test, y_test, artifacts / "apd_roc_xgb.png", "XGBoost", seed)
+    logit_metrics = evaluate_classifier(
+        logit_model,
+        splits,
+        artifacts / "apd_roc_logit.png",
+        "Logistic",
+        seed,
+    )
+    xgb_metrics = evaluate_classifier(
+        xgb_model,
+        splits,
+        artifacts / "apd_roc_xgb.png",
+        "XGBoost",
+        seed,
+    )
 
     # Feature importance from the XGBoost core estimator
     feature_names = xgb_model.named_steps["prep"].get_feature_names_out()
@@ -219,6 +245,7 @@ def train_apd(
         "xgboost": xgb_metrics,
         "class_balance": {
             "train_pos_pct": float(y_train.mean()),
+            "validation_pos_pct": float(y_val.mean()),
             "test_pos_pct": float(y_test.mean()),
         },
         "records_used": len(apd_df),
@@ -231,17 +258,18 @@ def train_apd(
 
 def evaluate_classifier(
     model: Pipeline,
-    X_test: pd.DataFrame,
-    y_test: pd.Series,
+    splits: Dict[str, Tuple[pd.DataFrame, pd.Series]],
     roc_path: Path,
     label: str,
     seed: int,
 ) -> dict:
+    split_metrics = {
+        split: score_split(model, X_split, y_split)
+        for split, (X_split, y_split) in splits.items()
+    }
+    X_test, y_test = splits["test"]
     probs = model.predict_proba(X_test)[:, 1]
     preds = (probs >= 0.5).astype(int)
-    auc = roc_auc_score(y_test, probs)
-    acc = accuracy_score(y_test, preds)
-    f1 = f1_score(y_test, preds)
     report = classification_report(y_test, preds, output_dict=True)
 
     RocCurveDisplay.from_predictions(y_test, probs, name=label)
@@ -259,13 +287,34 @@ def evaluate_classifier(
     plt.close()
 
     return {
-        "auc": float(auc),
-        "accuracy": float(acc),
-        "f1": float(f1),
+        "auc": float(split_metrics["test"]["auc"]),
+        "accuracy": float(split_metrics["test"]["accuracy"]),
+        "f1": float(split_metrics["test"]["f1"]),
+        "recall": float(split_metrics["test"]["recall"]),
+        "splits": split_metrics,
         "classification_report": report,
         "roc_curve": roc_path.as_posix(),
         "confusion_matrix": cm_path.as_posix(),
         "seed": seed,
+    }
+
+
+def score_split(model: Pipeline, X_split: pd.DataFrame, y_split: pd.Series) -> dict:
+    probs = model.predict_proba(X_split)[:, 1]
+    preds = (probs >= 0.5).astype(int)
+    auc = roc_auc_score(y_split, probs)
+    acc = accuracy_score(y_split, preds)
+    f1 = f1_score(y_split, preds)
+    report = classification_report(y_split, preds, output_dict=True)
+    recall = report.get("1", {}).get("recall", 0.0)
+    support = report.get("1", {}).get("support", 0.0)
+    return {
+        "auc": float(auc),
+        "accuracy": float(acc),
+        "f1": float(f1),
+        "recall": float(recall),
+        "support": int(support),
+        "samples": int(len(y_split)),
     }
 
 
@@ -403,6 +452,7 @@ def train_lafd_bucket_classifier(df: pd.DataFrame, artifacts: Path, seed: int) -
     preds = clf.predict(X_test)
     acc = accuracy_score(y_test, preds)
     f1 = f1_score(y_test, preds, average="macro")
+    recall = recall_score(y_test, preds, average="macro")
     cm = ConfusionMatrixDisplay.from_predictions(y_test, preds, cmap="Blues")
     plt.title("LAFD Bucket Confusion Matrix")
     plt.tight_layout()
@@ -412,6 +462,7 @@ def train_lafd_bucket_classifier(df: pd.DataFrame, artifacts: Path, seed: int) -
     return {
         "accuracy": float(acc),
         "f1_macro": float(f1),
+        "recall_macro": float(recall),
         "confusion_matrix": cm_path.as_posix(),
     }
 

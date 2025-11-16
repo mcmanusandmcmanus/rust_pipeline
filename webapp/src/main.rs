@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     env,
     net::SocketAddr,
     path::{Path, PathBuf},
@@ -8,18 +9,18 @@ use std::{
 use anyhow::Result;
 use askama::Template;
 use axum::{
-    Json, Router,
     extract::State,
     http::StatusCode,
     response::{Html, IntoResponse},
     routing::get,
+    Json, Router,
 };
-use base64::{Engine as _, engine::general_purpose::STANDARD};
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use tokio::{fs, net::TcpListener};
 use tower_http::trace::TraceLayer;
-use tracing::{Level, info, warn};
+use tracing::{info, warn, Level};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -297,6 +298,17 @@ struct ModelScores {
     auc: Option<f64>,
     accuracy: Option<f64>,
     f1: Option<f64>,
+    recall: Option<f64>,
+    #[serde(default)]
+    splits: HashMap<String, SplitScore>,
+}
+
+#[derive(Deserialize)]
+struct SplitScore {
+    auc: Option<f64>,
+    accuracy: Option<f64>,
+    f1: Option<f64>,
+    recall: Option<f64>,
 }
 
 #[derive(Deserialize)]
@@ -307,51 +319,168 @@ struct ApdMetricsFile {
 
 #[derive(Serialize)]
 struct ApdSummary {
-    logistic_auc: f64,
-    logistic_accuracy: f64,
-    logistic_f1: f64,
-    xgb_auc: f64,
-    xgb_accuracy: f64,
-    xgb_f1: f64,
+    logistic: ModelCard,
+    xgb: ModelCard,
+}
+
+#[derive(Serialize)]
+struct ModelCard {
+    label: &'static str,
+    auc: f64,
+    accuracy: f64,
+    f1: f64,
+    recall: f64,
+    splits: Vec<SplitDisplay>,
+}
+
+#[derive(Serialize)]
+struct SplitDisplay {
+    name: String,
+    auc: f64,
+    accuracy: f64,
+    f1: f64,
+    recall: f64,
 }
 
 impl From<ApdMetricsFile> for ApdSummary {
     fn from(value: ApdMetricsFile) -> Self {
         Self {
-            logistic_auc: value.logistic_regression.auc.unwrap_or_default(),
-            logistic_accuracy: value.logistic_regression.accuracy.unwrap_or_default(),
-            logistic_f1: value.logistic_regression.f1.unwrap_or_default(),
-            xgb_auc: value.xgboost.auc.unwrap_or_default(),
-            xgb_accuracy: value.xgboost.accuracy.unwrap_or_default(),
-            xgb_f1: value.xgboost.f1.unwrap_or_default(),
+            logistic: ModelCard::from_scores("Logistic", value.logistic_regression),
+            xgb: ModelCard::from_scores("XGBoost", value.xgboost),
         }
     }
 }
 
 impl ApdSummary {
     fn logistic_auc_label(&self) -> String {
-        format!("{:.3}", self.logistic_auc)
+        self.logistic.auc_label()
     }
 
     fn xgb_auc_label(&self) -> String {
-        format!("{:.3}", self.xgb_auc)
+        self.xgb.auc_label()
     }
 
     fn logistic_accuracy_pct(&self) -> String {
-        format!("{:.1}", self.logistic_accuracy * 100.0)
+        self.logistic.accuracy_pct()
     }
 
     fn xgb_accuracy_pct(&self) -> String {
-        format!("{:.1}", self.xgb_accuracy * 100.0)
+        self.xgb.accuracy_pct()
     }
 
     fn logistic_f1_pct(&self) -> String {
-        format!("{:.1}", self.logistic_f1 * 100.0)
+        self.logistic.f1_pct()
     }
 
     fn xgb_f1_pct(&self) -> String {
-        format!("{:.1}", self.xgb_f1 * 100.0)
+        self.xgb.f1_pct()
     }
+
+    fn logistic_recall_pct(&self) -> String {
+        self.logistic.recall_pct()
+    }
+
+    fn xgb_recall_pct(&self) -> String {
+        self.xgb.recall_pct()
+    }
+
+    fn model_cards(&self) -> Vec<&ModelCard> {
+        vec![&self.logistic, &self.xgb]
+    }
+}
+
+impl ModelCard {
+    fn from_scores(label: &'static str, scores: ModelScores) -> Self {
+        let ModelScores {
+            auc,
+            accuracy,
+            f1,
+            recall,
+            splits,
+        } = scores;
+        let split_rows = format_splits(&splits);
+        Self {
+            label,
+            auc: auc.unwrap_or_default(),
+            accuracy: accuracy.unwrap_or_default(),
+            f1: f1.unwrap_or_default(),
+            recall: recall.unwrap_or_default(),
+            splits: split_rows,
+        }
+    }
+
+    fn auc_label(&self) -> String {
+        format!("{:.3}", self.auc)
+    }
+
+    fn accuracy_pct(&self) -> String {
+        format!("{:.1}", self.accuracy * 100.0)
+    }
+
+    fn f1_pct(&self) -> String {
+        format!("{:.1}", self.f1 * 100.0)
+    }
+
+    fn recall_pct(&self) -> String {
+        format!("{:.1}", self.recall * 100.0)
+    }
+}
+
+impl SplitDisplay {
+    fn split_label(&self) -> String {
+        match self.name.as_str() {
+            "train" => "Train".to_string(),
+            "validation" => "Validation".to_string(),
+            "test" => "Test".to_string(),
+            other => other.to_string(),
+        }
+    }
+
+    fn accuracy_pct(&self) -> String {
+        format!("{:.1}", self.accuracy * 100.0)
+    }
+
+    fn recall_pct(&self) -> String {
+        format!("{:.1}", self.recall * 100.0)
+    }
+
+    fn f1_pct(&self) -> String {
+        format!("{:.1}", self.f1 * 100.0)
+    }
+
+    fn auc_label(&self) -> String {
+        format!("{:.3}", self.auc)
+    }
+}
+
+fn format_splits(map: &HashMap<String, SplitScore>) -> Vec<SplitDisplay> {
+    let mut rows = Vec::new();
+    let preferred = ["train", "validation", "test"];
+    for key in preferred {
+        if let Some(entry) = map.get(key) {
+            rows.push(SplitDisplay {
+                name: key.to_string(),
+                auc: entry.auc.unwrap_or_default(),
+                accuracy: entry.accuracy.unwrap_or_default(),
+                f1: entry.f1.unwrap_or_default(),
+                recall: entry.recall.unwrap_or_default(),
+            });
+        }
+    }
+    for (name, entry) in map {
+        let split_name = name.as_str();
+        if preferred.contains(&split_name) {
+            continue;
+        }
+        rows.push(SplitDisplay {
+            name: split_name.to_string(),
+            auc: entry.auc.unwrap_or_default(),
+            accuracy: entry.accuracy.unwrap_or_default(),
+            f1: entry.f1.unwrap_or_default(),
+            recall: entry.recall.unwrap_or_default(),
+        });
+    }
+    rows
 }
 
 #[derive(Deserialize)]
@@ -366,6 +495,8 @@ struct LafdBucket {
     accuracy: Option<f64>,
     #[serde(rename = "f1_macro")]
     f1_macro: Option<f64>,
+    #[serde(rename = "recall_macro")]
+    recall_macro: Option<f64>,
 }
 
 #[derive(Deserialize)]
@@ -382,11 +513,13 @@ struct LafdSummary {
     r2: f64,
     bucket_accuracy: Option<f64>,
     bucket_f1: Option<f64>,
+    bucket_recall: Option<f64>,
 }
 
 struct BucketSummaryText {
     accuracy: String,
     f1: String,
+    recall: Option<String>,
 }
 
 impl From<LafdMetricsFile> for LafdSummary {
@@ -397,6 +530,10 @@ impl From<LafdMetricsFile> for LafdSummary {
             r2: value.regression.r2,
             bucket_accuracy: value.bucket_classifier.as_ref().and_then(|b| b.accuracy),
             bucket_f1: value.bucket_classifier.as_ref().and_then(|b| b.f1_macro),
+            bucket_recall: value
+                .bucket_classifier
+                .as_ref()
+                .and_then(|b| b.recall_macro),
         }
     }
 }
@@ -418,6 +555,9 @@ impl LafdSummary {
         Some(BucketSummaryText {
             accuracy: format!("{:.1}", self.bucket_accuracy? * 100.0),
             f1: format!("{:.1}", self.bucket_f1? * 100.0),
+            recall: self
+                .bucket_recall
+                .map(|value| format!("{:.1}", value * 100.0)),
         })
     }
 }
@@ -438,7 +578,7 @@ impl IntoResponse for AppError {
 }
 
 mod sample_data {
-    use serde_json::{Value, json};
+    use serde_json::{json, Value};
 
     pub fn prep() -> Value {
         json!({
@@ -461,12 +601,54 @@ mod sample_data {
             "logistic_regression": {
                 "auc": 0.842,
                 "accuracy": 0.781,
-                "f1": 0.744
+                "f1": 0.744,
+                "recall": 0.712,
+                "splits": {
+                    "train": {
+                        "auc": 0.903,
+                        "accuracy": 0.802,
+                        "f1": 0.761,
+                        "recall": 0.735
+                    },
+                    "validation": {
+                        "auc": 0.854,
+                        "accuracy": 0.779,
+                        "f1": 0.741,
+                        "recall": 0.709
+                    },
+                    "test": {
+                        "auc": 0.842,
+                        "accuracy": 0.781,
+                        "f1": 0.744,
+                        "recall": 0.712
+                    }
+                }
             },
             "xgboost": {
                 "auc": 0.918,
                 "accuracy": 0.846,
-                "f1": 0.812
+                "f1": 0.812,
+                "recall": 0.798,
+                "splits": {
+                    "train": {
+                        "auc": 0.962,
+                        "accuracy": 0.902,
+                        "f1": 0.868,
+                        "recall": 0.851
+                    },
+                    "validation": {
+                        "auc": 0.923,
+                        "accuracy": 0.841,
+                        "f1": 0.806,
+                        "recall": 0.791
+                    },
+                    "test": {
+                        "auc": 0.918,
+                        "accuracy": 0.846,
+                        "f1": 0.812,
+                        "recall": 0.798
+                    }
+                }
             }
         })
     }
@@ -480,7 +662,8 @@ mod sample_data {
             },
             "bucket_classifier": {
                 "accuracy": 0.716,
-                "f1_macro": 0.684
+                "f1_macro": 0.684,
+                "recall_macro": 0.672
             }
         })
     }

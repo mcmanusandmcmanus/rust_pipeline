@@ -9,12 +9,23 @@ cd webapp
 cargo run
 ```
 
-Environment variables (optional):
+Environment variables:
 
-- `WEBAPP_PORT`: default `8080`
+- `PORT` / `WEBAPP_PORT`: default `8080`. Render automatically injects `PORT`.
 - `WEBAPP_HOST`: default `0.0.0.0` (override when binding to a specific interface)
 - `PREP_BENCH_PATH`: defaults to `../data/processed/prep_rust_bench.json`
 - `APD_METRICS_PATH`: defaults to `../py_model/artifacts/apd_metrics.json`
 - `LAFD_METRICS_PATH`: defaults to `../py_model/artifacts/lafd_metrics.json`
 
-Once the Rust prep + Python modeling scripts have produced their JSON, the dashboard renders a hero section with the hardware narrative plus live Plotly charts driven by `/api/metrics`.
+If the JSON artifacts are missing or malformed, the server now falls back to baked-in sample metrics and labels the UI accordingly so you can still demo the Plotly visuals.
+
+## Render / Docker deploy
+
+The repo root contains a multi-stage `Dockerfile` and `render.yaml`. Render uses those to build and run the release binary. Locally you can mimic the container with:
+
+```powershell
+docker build -t rust-story-dashboard ..
+docker run --rm -p 8080:10000 rust-story-dashboard
+```
+
+Within Render, set the service to auto-deploy from GitHub. You only need to override the artifact paths when you’re ready to point at live data.

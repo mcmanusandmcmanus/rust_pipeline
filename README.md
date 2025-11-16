@@ -2,6 +2,8 @@
 
 End-to-end demo that ingests multi-GB public safety CSVs with Rust, prepares modeling features, benchmarks Python/XGBoost models, and surfaces the story through a lightweight Rust web dashboard.
 
+> The raw CSVs are **not** committed. Drop them at the repo root (or update the flags below). The dashboard now ships with baked-in sample metrics so you can demo the visuals even before running the heavy prep/model stages.
+
 ## Repo Layout
 
 | Path | Description |
@@ -9,11 +11,9 @@ End-to-end demo that ingests multi-GB public safety CSVs with Rust, prepares mod
 | `docs/` | Planning notes, schema profiles, sampling strategy. |
 | `rust_prep/` | Rust CLI (Polars) that streams the raw CSVs, engineers features, stratified-samples ~250k rows per dataset, and emits Parquet + benchmark JSON. |
 | `py_model/` | Python Typer CLI that trains Logistic/XGBoost (APD) and regression/classifier (LAFD), producing metrics + plots in `artifacts/`. |
-| `webapp/` | Axum + Askama dashboard that reads the JSON artifacts and renders the “Rust engine, Python lab coat” narrative with Plotly charts. |
+| `webapp/` | Axum + Askama dashboard that reads the JSON artifacts (or its own sample bundle) and renders the “Rust engine, Python lab coat” narrative with Plotly charts. |
 
-## Quick Start
-
-> ⚠️ The raw CSVs are **not** committed. Drop them at the repo root (or update the flags below).
+## Quick Start (full pipeline)
 
 1. **Rust feature prep**
    ```powershell
@@ -46,9 +46,20 @@ End-to-end demo that ingests multi-GB public safety CSVs with Rust, prepares mod
    ```
    Visit <http://127.0.0.1:8080>. Export `/api/metrics` if you need raw data for other dashboards/agents. Adjust env vars (`WEBAPP_PORT`, `PREP_BENCH_PATH`, etc.) as needed.
 
-Hardware envelope (documented in `docs/`):
+If the JSON artifacts aren’t present, the dashboard shows its built-in sample story and labels it clearly so viewers know they’re seeing demo data.
 
-- CPU: Intel Core Ultra 7 155U @ 1.70 GHz
-- RAM: 32 GB (≈29 GB usable)
+## Deploying the dashboard to Render
 
-This setup comfortably handles the 1 GB CSVs with Rust streaming + 250k-row XGBoost experiments without stressing the laptop.
+The repo includes a multi-stage Dockerfile plus `render.yaml`. Render auto-detects and builds the Rust binary, so you can share the hosted URL quickly:
+
+1. Push this repo to GitHub (or your fork) so Render can pull it.
+2. In Render, choose **New > Blueprint** and point it at the repository. Render reads `render.yaml` and provisions a single web service.
+3. The provided Docker image binds to `$PORT` automatically; no extra configuration is needed. The baked-in sample metrics ensure the landing page and Plotly charts are populated immediately.
+4. Once the service is live, share the Render URL with your nephew. When you’re ready to swap in real metrics, upload the JSON artifacts with a deploy hook or persistent disk and set `PREP_BENCH_PATH`, `APD_METRICS_PATH`, and `LAFD_METRICS_PATH` as service env vars.
+
+## Hardware Envelope
+
+- CPU: Intel Core Ultra 7 155U @ 1.70 GHz
+- RAM: 32 GB (≈31 GB usable)
+
+This setup comfortably handles the 1 GB CSVs with Rust streaming + 250k-row XGBoost experiments without stressing the laptop.

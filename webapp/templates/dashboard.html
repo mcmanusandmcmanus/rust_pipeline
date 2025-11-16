@@ -68,6 +68,14 @@
             line-height: 1.5;
             opacity: 0.85;
         }
+        .notice {
+            margin-top: 16px;
+            padding: 12px 16px;
+            border-radius: 12px;
+            background: rgba(138, 209, 255, 0.12);
+            border: 1px solid rgba(138, 209, 255, 0.25);
+            font-size: 0.95rem;
+        }
         a {
             color: #8ad1ff;
         }
@@ -75,6 +83,11 @@
         #lafd-chart {
             width: 100%;
             min-height: 300px;
+        }
+        .meta {
+            display: block;
+            font-size: 0.85rem;
+            opacity: 0.75;
         }
     </style>
 </head>
@@ -84,6 +97,12 @@
             <p>Hardware: {{ ctx.hardware.cpu }} &middot; {{ ctx.hardware.ram }}</p>
             <h1>{{ ctx.hardware.tagline }}</h1>
             <p class="tagline">{{ ctx.hardware.narrative }}</p>
+            {% if ctx.sample_mode %}
+                <p class="notice">
+                    Showing baked sample metrics. Point <code>PREP_BENCH_PATH</code>, <code>APD_METRICS_PATH</code>, and
+                    <code>LAFD_METRICS_PATH</code> to your own JSON artifacts for live data.
+                </p>
+            {% endif %}
         </header>
 
         <section class="card-grid">
@@ -92,8 +111,10 @@
                 {% if let Some(prep) = ctx.prep %}
                     <div class="metric">{{ prep.apd_seconds_label() }}s</div>
                     <p>APD feature table ({{ prep.apd_rows }} rows)</p>
+                    <small class="meta">Parquet → {{ prep.apd_output_hint() }}</small>
                     <div class="metric">{{ prep.lafd_seconds_label() }}s</div>
                     <p>LAFD response table ({{ prep.lafd_rows }} rows)</p>
+                    <small class="meta">Parquet → {{ prep.lafd_output_hint() }}</small>
                 {% else %}
                     <p>Run <code>rust_prep</code> to populate <code>prep_rust_bench.json</code>.</p>
                 {% endif %}
@@ -103,7 +124,8 @@
                 {% if let Some(apd) = ctx.apd %}
                     <div class="metric">{{ apd.xgb_auc_label() }}</div>
                     <p>XGBoost &middot; Logistic baseline: {{ apd.logistic_auc_label() }}</p>
-                    <small>Accuracy comparison: XGBoost {{ apd.xgb_accuracy_pct() }}% | Logistic {{ apd.logistic_accuracy_pct() }}%</small>
+                    <small>Accuracy: XGBoost {{ apd.xgb_accuracy_pct() }}% | Logistic {{ apd.logistic_accuracy_pct() }}%</small>
+                    <small>F1: XGBoost {{ apd.xgb_f1_pct() }}% | Logistic {{ apd.logistic_f1_pct() }}%</small>
                 {% else %}
                     <p>Awaiting <code>py_model/src/train.py</code> outputs.</p>
                 {% endif %}

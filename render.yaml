@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: rust-pipeline-dashboard
+    env: docker
+    plan: free
+    autoDeploy: true
+    dockerfilePath: ./Dockerfile
+    rootDir: .
+    envVars:
+      - key: WEBAPP_HOST
+        value: 0.0.0.0

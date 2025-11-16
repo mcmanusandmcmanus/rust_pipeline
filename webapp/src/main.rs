@@ -14,12 +14,12 @@ use axum::{
     response::{Html, IntoResponse},
     routing::get,
 };
-use base64::{engine::general_purpose::STANDARD, Engine as _};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tokio::{fs, net::TcpListener};
 use tower_http::trace::TraceLayer;
-use tracing::{Level, info};
+use tracing::{Level, info, warn};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -57,7 +57,8 @@ struct AppConfig {
 
 impl AppConfig {
     fn from_env() -> Result<Self> {
-        let port = env::var("WEBAPP_PORT")
+        let port = env::var("PORT")
+            .or_else(|_| env::var("WEBAPP_PORT"))
             .ok()
             .and_then(|p| p.parse::<u16>().ok())
             .unwrap_or(8080);
@@ -99,30 +100,40 @@ async fn metrics(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse
 
 impl AppState {
     async fn load_context(&self) -> Result<DashboardPayload> {
-        let prep_value = read_json(&self.config.prep_path).await;
-        let apd_value = read_json(&self.config.apd_metrics_path).await;
-        let lafd_value = read_json(&self.config.lafd_metrics_path).await;
+        let prep_blob =
+            load_or_sample(&self.config.prep_path, "prep benchmarks", sample_data::prep).await;
+        let apd_blob = load_or_sample(
+            &self.config.apd_metrics_path,
+            "APD metrics",
+            sample_data::apd,
+        )
+        .await;
+        let lafd_blob = load_or_sample(
+            &self.config.lafd_metrics_path,
+            "LAFD metrics",
+            sample_data::lafd,
+        )
+        .await;
 
-        let prep_summary = prep_value
-            .as_ref()
-            .and_then(|v| serde_json::from_value::<PrepFile>(v.clone()).ok())
+        let prep_summary = serde_json::from_value::<PrepFile>(prep_blob.value.clone())
+            .ok()
             .map(PrepSummary::from);
-        let apd_summary = apd_value
-            .as_ref()
-            .and_then(|v| serde_json::from_value::<ApdMetricsFile>(v.clone()).ok())
+        let apd_summary = serde_json::from_value::<ApdMetricsFile>(apd_blob.value.clone())
+            .ok()
             .map(ApdSummary::from);
-        let lafd_summary = lafd_value
-            .as_ref()
-            .and_then(|v| serde_json::from_value::<LafdMetricsFile>(v.clone()).ok())
+        let lafd_summary = serde_json::from_value::<LafdMetricsFile>(lafd_blob.value.clone())
+            .ok()
             .map(LafdSummary::from);
 
         let raw_metrics = json!({
-            "prep": prep_value,
-            "apd": apd_value,
-            "lafd": lafd_value
+            "prep": prep_blob.value,
+            "apd": apd_blob.value,
+            "lafd": lafd_blob.value
         });
 
         let metrics_b64 = STANDARD.encode(serde_json::to_vec(&raw_metrics).unwrap_or_default());
+
+        let sample_mode = prep_blob.used_sample || apd_blob.used_sample || lafd_blob.used_sample;
 
         let template = DashboardTemplateData {
             hardware: HardwareSpec::default(),
@@ -130,6 +141,7 @@ impl AppState {
             apd: apd_summary,
             lafd: lafd_summary,
             metrics_b64,
+            sample_mode,
         };
 
         Ok(DashboardPayload {
@@ -139,9 +151,40 @@ impl AppState {
     }
 }
 
-async fn read_json(path: &Path) -> Option<Value> {
-    let contents = fs::read_to_string(path).await.ok()?;
-    serde_json::from_str(&contents).ok()
+struct LoadedValue {
+    value: Value,
+    used_sample: bool,
+}
+
+async fn load_or_sample<F>(path: &Path, label: &str, sample: F) -> LoadedValue
+where
+    F: FnOnce() -> Value,
+{
+    match read_json(path).await {
+        Ok(value) => LoadedValue {
+            value,
+            used_sample: false,
+        },
+        Err(err) => {
+            warn!(
+                target: "dashboard",
+                error = %err,
+                path = %path.display(),
+                "{} missing; using baked sample metrics",
+                label
+            );
+            LoadedValue {
+                value: sample(),
+                used_sample: true,
+            }
+        }
+    }
+}
+
+async fn read_json(path: &Path) -> Result<Value> {
+    let contents = fs::read_to_string(path).await?;
+    let value = serde_json::from_str(&contents)?;
+    Ok(value)
 }
 
 struct DashboardPayload {
@@ -162,6 +205,7 @@ struct DashboardTemplateData {
     apd: Option<ApdSummary>,
     lafd: Option<LafdSummary>,
     metrics_b64: String,
+    sample_mode: bool,
 }
 
 #[derive(Serialize)]
@@ -204,6 +248,8 @@ struct PrepSummary {
     lafd_rows: usize,
     apd_duration_ms: u128,
     lafd_duration_ms: u128,
+    apd_output: String,
+    lafd_output: String,
 }
 
 impl From<PrepFile> for PrepSummary {
@@ -214,6 +260,8 @@ impl From<PrepFile> for PrepSummary {
             lafd_rows: value.lafd.rows_sampled,
             apd_duration_ms: value.apd.duration_ms,
             lafd_duration_ms: value.lafd.duration_ms,
+            apd_output: value.apd.output_path,
+            lafd_output: value.lafd.output_path,
         }
     }
 }
@@ -226,6 +274,22 @@ impl PrepSummary {
     fn lafd_seconds_label(&self) -> String {
         format!("{:.1}", self.lafd_duration_ms as f64 / 1000.0)
     }
+
+    fn apd_output_hint(&self) -> String {
+        dataset_output_hint(&self.apd_output)
+    }
+
+    fn lafd_output_hint(&self) -> String {
+        dataset_output_hint(&self.lafd_output)
+    }
+}
+
+fn dataset_output_hint(path: &str) -> String {
+    Path::new(path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| name.to_string())
+        .unwrap_or_else(|| path.to_string())
 }
 
 #[derive(Deserialize)]
@@ -245,8 +309,10 @@ struct ApdMetricsFile {
 struct ApdSummary {
     logistic_auc: f64,
     logistic_accuracy: f64,
+    logistic_f1: f64,
     xgb_auc: f64,
     xgb_accuracy: f64,
+    xgb_f1: f64,
 }
 
 impl From<ApdMetricsFile> for ApdSummary {
@@ -254,8 +320,10 @@ impl From<ApdMetricsFile> for ApdSummary {
         Self {
             logistic_auc: value.logistic_regression.auc.unwrap_or_default(),
             logistic_accuracy: value.logistic_regression.accuracy.unwrap_or_default(),
+            logistic_f1: value.logistic_regression.f1.unwrap_or_default(),
             xgb_auc: value.xgboost.auc.unwrap_or_default(),
             xgb_accuracy: value.xgboost.accuracy.unwrap_or_default(),
+            xgb_f1: value.xgboost.f1.unwrap_or_default(),
         }
     }
 }
@@ -275,6 +343,14 @@ impl ApdSummary {
 
     fn xgb_accuracy_pct(&self) -> String {
         format!("{:.1}", self.xgb_accuracy * 100.0)
+    }
+
+    fn logistic_f1_pct(&self) -> String {
+        format!("{:.1}", self.logistic_f1 * 100.0)
+    }
+
+    fn xgb_f1_pct(&self) -> String {
+        format!("{:.1}", self.xgb_f1 * 100.0)
     }
 }
 
@@ -358,5 +434,54 @@ impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
         tracing::error!("{:?}", self.0);
         (StatusCode::INTERNAL_SERVER_ERROR, "internal server error").into_response()
+    }
+}
+
+mod sample_data {
+    use serde_json::{Value, json};
+
+    pub fn prep() -> Value {
+        json!({
+            "total_duration_ms": 61842,
+            "apd": {
+                "rows_sampled": 250_000,
+                "duration_ms": 27_400,
+                "output_path": "data/processed/apd_sample.parquet"
+            },
+            "lafd": {
+                "rows_sampled": 240_000,
+                "duration_ms": 33_950,
+                "output_path": "data/processed/lafd_sample.parquet"
+            }
+        })
+    }
+
+    pub fn apd() -> Value {
+        json!({
+            "logistic_regression": {
+                "auc": 0.842,
+                "accuracy": 0.781,
+                "f1": 0.744
+            },
+            "xgboost": {
+                "auc": 0.918,
+                "accuracy": 0.846,
+                "f1": 0.812
+            }
+        })
+    }
+
+    pub fn lafd() -> Value {
+        json!({
+            "regression": {
+                "mae": 38.7,
+                "rmse": 61.3,
+                "r2": 0.741
+            },
+            "bucket_classifier": {
+                "accuracy": 0.716,
+                "f1_macro": 0.684
+            }
+        })
     }
 }

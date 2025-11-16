@@ -1,0 +1,17 @@
+# Large raw datasets stay outside the repo
+/APD_Computer_Aided_Dispatch_Incidents_*.csv
+/LAFD_Response_Metrics_-_Raw_Data_*.csv
+/data/
+
+# Python virtual envs & generated artifacts
+/py_model/.venv/
+/py_model/artifacts/
+/py_model/__pycache__/
+
+# Rust build outputs
+/rust_prep/target/
+/webapp/target/
+
+# OS noise
+*.DS_Store
+Thumbs.db

@@ -1,0 +1,26 @@
+[package]
+name = "rust_prep"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0"
+clap = { version = "4.5", features = ["derive"] }
+indicatif = "0.17"
+polars = { version = "0.43.1", features = [
+    "lazy",
+    "dtype-date",
+    "dtype-datetime",
+    "strings",
+    "temporal",
+    "parquet",
+    "csv",
+    "serde",
+    "partition_by",
+    "regex",
+    "concat_str"
+] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+time = { version = "0.3", features = ["macros", "formatting"] }
+rand = { version = "0.8", features = ["std"] }

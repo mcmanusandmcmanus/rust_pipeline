@@ -12,6 +12,7 @@ cargo run
 Environment variables (optional):
 
 - `WEBAPP_PORT`: default `8080`
+- `WEBAPP_HOST`: default `0.0.0.0` (override when binding to a specific interface)
 - `PREP_BENCH_PATH`: defaults to `../data/processed/prep_rust_bench.json`
 - `APD_METRICS_PATH`: defaults to `../py_model/artifacts/apd_metrics.json`
 - `LAFD_METRICS_PATH`: defaults to `../py_model/artifacts/lafd_metrics.json`

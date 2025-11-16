@@ -4,9 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Rust Pipeline Benchmark</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600&display=swap" rel="stylesheet" />
     <style>
         :root {
             color-scheme: dark;
@@ -18,7 +18,7 @@
             margin: 0;
             padding: 0;
             min-height: 100vh;
-            background: radial-gradient(circle at top, rgba(28,72,157,0.35), transparent 55%), #050910;
+            background: radial-gradient(circle at top, rgba(28, 72, 157, 0.35), transparent 55%), #050910;
         }
         .wrapper {
             max-width: 1100px;
@@ -71,7 +71,8 @@
         a {
             color: #8ad1ff;
         }
-        #apd-chart, #lafd-chart {
+        #apd-chart,
+        #lafd-chart {
             width: 100%;
             min-height: 300px;
         }
@@ -80,7 +81,7 @@
 <body>
     <div class="wrapper">
         <header class="hero">
-            <p>Hardware: {{ ctx.hardware.cpu }} · {{ ctx.hardware.ram }}</p>
+            <p>Hardware: {{ ctx.hardware.cpu }} &middot; {{ ctx.hardware.ram }}</p>
             <h1>{{ ctx.hardware.tagline }}</h1>
             <p class="tagline">{{ ctx.hardware.narrative }}</p>
         </header>
@@ -94,24 +95,24 @@
                     <div class="metric">{{ prep.lafd_seconds_label() }}s</div>
                     <p>LAFD response table ({{ prep.lafd_rows }} rows)</p>
                 {% else %}
-                    <p>Run `rust_prep` to populate prep_rust_bench.json.</p>
+                    <p>Run <code>rust_prep</code> to populate <code>prep_rust_bench.json</code>.</p>
                 {% endif %}
             </div>
             <div class="card">
                 <h2>APD AUC</h2>
                 {% if let Some(apd) = ctx.apd %}
                     <div class="metric">{{ apd.xgb_auc_label() }}</div>
-                    <p>XGBoost · Logistic baseline: {{ apd.logistic_auc_label() }}</p>
-                    <small>Accuracy ↑ XGBoost {{ apd.xgb_accuracy_pct() }}% · Logistic {{ apd.logistic_accuracy_pct() }}%</small>
+                    <p>XGBoost &middot; Logistic baseline: {{ apd.logistic_auc_label() }}</p>
+                    <small>Accuracy comparison: XGBoost {{ apd.xgb_accuracy_pct() }}% | Logistic {{ apd.logistic_accuracy_pct() }}%</small>
                 {% else %}
-                    <p>Awaiting `py_model/src/train.py` outputs.</p>
+                    <p>Awaiting <code>py_model/src/train.py</code> outputs.</p>
                 {% endif %}
             </div>
             <div class="card">
                 <h2>LAFD Regression</h2>
                 {% if let Some(lafd) = ctx.lafd %}
                     <div class="metric">{{ lafd.mae_label() }}s</div>
-                    <p>MAE · RMSE {{ lafd.rmse_label() }}s · R² {{ lafd.r2_label() }}</p>
+                    <p>MAE &middot; RMSE {{ lafd.rmse_label() }}s &middot; R<sup>2</sup> {{ lafd.r2_label() }}</p>
                     {% if let Some(bucket) = lafd.bucket_summary() %}
                         <small>Bucket classifier accuracy {{ bucket.accuracy }}% | F1 {{ bucket.f1 }}%</small>
                     {% endif %}
@@ -126,8 +127,8 @@
             <div id="apd-chart"></div>
             <div id="lafd-chart"></div>
             <p class="narrative">
-                The dashboard pulls directly from the JSON artifacts that Rust + Python drop under <code>data/processed/</code> and <code>py_model/artifacts/</code>. Hit
-                <code>/api/metrics</code> if you want to wire these results into another dashboard or LLM agent.
+                The dashboard pulls directly from the JSON artifacts that Rust + Python drop under <code>data/processed/</code>
+                and <code>py_model/artifacts/</code>. Hit <code>/api/metrics</code> if you want to wire these results into another dashboard or LLM agent.
             </p>
         </section>
     </div>

@@ -14,7 +14,7 @@ use axum::{
     response::{Html, IntoResponse},
     routing::get,
 };
-use base64::{Engine as _, engine::general_purpose::STANDARD_NO_PAD};
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tokio::{fs, net::TcpListener};
@@ -61,7 +61,10 @@ impl AppConfig {
             .ok()
             .and_then(|p| p.parse::<u16>().ok())
             .unwrap_or(8080);
-        let bind_addr = SocketAddr::from(([127, 0, 0, 1], port));
+        let host = env::var("WEBAPP_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
+        let bind_addr = format!("{host}:{port}")
+            .parse()
+            .unwrap_or_else(|_| SocketAddr::from(([0, 0, 0, 0], port)));
         let prep_path = env::var("PREP_BENCH_PATH")
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from("../data/processed/prep_rust_bench.json"));
@@ -119,8 +122,7 @@ impl AppState {
             "lafd": lafd_value
         });
 
-        let metrics_b64 =
-            STANDARD_NO_PAD.encode(serde_json::to_vec(&raw_metrics).unwrap_or_default());
+        let metrics_b64 = STANDARD.encode(serde_json::to_vec(&raw_metrics).unwrap_or_default());
 
         let template = DashboardTemplateData {
             hardware: HardwareSpec::default(),

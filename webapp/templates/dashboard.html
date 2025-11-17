@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Rust vs Python · 2024 Experiment</title>
+    <title>Rust vs Python Experiment Dashboard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600&display=swap" rel="stylesheet" />
@@ -11,50 +11,41 @@
         :root {
             color-scheme: dark;
             font-family: 'Space Grotesk', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background-color: #050910;
-            color: #f2f5ff;
+            background-color: #04070e;
+            color: #f5f7ff;
         }
         body {
             margin: 0;
             padding: 0;
             min-height: 100vh;
-            background: radial-gradient(circle at top, rgba(28, 72, 157, 0.35), transparent 55%), #050910;
+            background: radial-gradient(circle at top, rgba(58, 97, 191, 0.35), transparent 55%), #04070e;
         }
         .wrapper {
             max-width: 1200px;
             margin: 0 auto;
-            padding: 56px 24px 80px;
+            padding: 48px 24px 96px;
         }
         h1, h2, h3 {
             font-weight: 600;
-            letter-spacing: -0.5px;
+            letter-spacing: -0.4px;
+        }
+        p {
+            line-height: 1.5;
         }
         .hero {
             margin-bottom: 40px;
         }
-        .eyebrow {
-            font-size: 0.95rem;
-            letter-spacing: 0.08rem;
-            text-transform: uppercase;
-            opacity: 0.7;
-        }
-        .tagline {
-            font-size: 1.15rem;
-            opacity: 0.85;
-            margin-top: 8px;
-        }
-        .chip-row {
-            margin-top: 18px;
+        .chips {
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
+            margin-top: 16px;
         }
         .chip {
-            padding: 6px 14px;
-            border-radius: 999px;
             background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            font-size: 0.85rem;
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 0.9rem;
         }
         .card-grid {
             display: grid;
@@ -62,275 +53,567 @@
             gap: 20px;
         }
         .card {
-            background: rgba(255, 255, 255, 0.04);
+            background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 18px;
-            padding: 22px;
-            backdrop-filter: blur(18px);
+            padding: 20px;
             box-shadow: 0 15px 35px rgba(0, 0, 0, 0.35);
-            min-height: 160px;
+            backdrop-filter: blur(18px);
         }
-        .panel {
-            margin-top: 48px;
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 24px;
-            padding: 28px;
-            border: 1px solid rgba(255, 255, 255, 0.06);
+        .card h3 {
+            margin-top: 0;
         }
-        .metric {
-            font-size: 2.25rem;
-            margin: 12px 0 4px;
+        .card ul {
+            padding-left: 18px;
+            margin: 0;
         }
-        .narrative {
-            margin-top: 16px;
-            font-size: 1rem;
-            line-height: 1.6;
-            opacity: 0.85;
+        .section {
+            margin-top: 56px;
         }
-        .notice {
-            margin-top: 16px;
-            padding: 12px 16px;
-            border-radius: 12px;
-            background: rgba(138, 209, 255, 0.12);
-            border: 1px solid rgba(138, 209, 255, 0.25);
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+        }
+        th, td {
+            text-align: left;
+            padding: 10px 12px;
             font-size: 0.95rem;
+        }
+        th {
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 0.1em;
+            opacity: 0.75;
+        }
+        tr:nth-child(even) {
+            background: rgba(255, 255, 255, 0.03);
+        }
+        .table-card {
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 18px;
+            padding: 20px;
+            background: rgba(8, 12, 22, 0.85);
+        }
+        .highlight {
+            color: #8ad1ff;
+            font-weight: 600;
+        }
+        .delta-badge {
+            display: inline-flex;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 0.85rem;
+            background: rgba(255, 255, 255, 0.07);
+        }
+        .quality-table td {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        }
+        .quality-table tr.alert td {
+            background: rgba(255, 99, 132, 0.1);
+        }
+        .scaling-list {
+            list-style: none;
+            padding-left: 0;
+            margin: 0;
+        }
+        .scaling-list li {
+            margin-bottom: 6px;
+        }
+        .methods-list {
+            list-style: none;
+            padding-left: 0;
+        }
+        .methods-list li {
+            margin-bottom: 8px;
+            position: relative;
+            padding-left: 20px;
+        }
+        .methods-list li::before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: #8ad1ff;
+        }
+        #apd-chart, #lafd-chart {
+            width: 100%;
+            min-height: 320px;
+        }
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
         }
         a {
             color: #8ad1ff;
-        }
-        #apd-chart,
-        #lafd-chart {
-            width: 100%;
-            min-height: 300px;
-        }
-        .meta {
-            display: block;
-            font-size: 0.85rem;
-            opacity: 0.75;
-        }
-        .split-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 18px;
-            margin-top: 16px;
-        }
-        .split-card {
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 18px;
-            padding: 18px;
-        }
-        .split-card table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 8px;
-        }
-        .split-card th {
-            text-align: left;
-            font-size: 0.8rem;
-            opacity: 0.65;
-            padding-bottom: 4px;
-        }
-        .split-card td {
-            font-size: 0.95rem;
-            padding: 4px 0;
-            border-top: 1px solid rgba(255, 255, 255, 0.06);
-        }
-        .two-columns {
-            grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-        }
-        ul {
-            padding-left: 20px;
         }
     </style>
 </head>
 <body>
     <div class="wrapper">
         <header class="hero">
-            <div class="eyebrow">{{ ctx.experiment.dataset_scope }} · Year {{ ctx.experiment.year_filter }}</div>
-            <h1>{{ ctx.experiment.hero_title }}</h1>
-            <p class="tagline">{{ ctx.experiment.hero_subtitle }}</p>
-            <div class="chip-row">
-                <span class="chip">Data: {{ ctx.experiment.dataset_scope }}</span>
-                <span class="chip">Pipelines: {{ ctx.experiment.control_label }} vs {{ ctx.experiment.experiment_label }}</span>
-                <span class="chip">Machine: {{ ctx.hardware.cpu }} · {{ ctx.hardware.ram }}</span>
-                <span class="chip">{{ ctx.experiment.row_cap_label }}</span>
+            <p class="eyebrow">{{ ctx.overview.eyebrow }}</p>
+            <h1>{{ ctx.overview.title }}</h1>
+            <p>{{ ctx.overview.subtitle }}</p>
+            <div class="chips">
+                {% for chip in ctx.overview.chips %}
+                    <span class="chip">{{ chip }}</span>
+                {% endfor %}
             </div>
-            {% if ctx.sample_mode %}
-                <p class="notice">
-                    Showing baked sample metrics. Point <code>PREP_BENCH_PATH</code>, <code>APD_METRICS_PATH</code>, and
-                    <code>LAFD_METRICS_PATH</code> to your own JSON artifacts for live data.
-                </p>
-            {% endif %}
         </header>
 
-        <section id="key-questions">
-            <h2>Key Questions for this Experiment</h2>
+        <section class="section" id="key-questions">
+            <h2>Key Questions for this Run</h2>
             <div class="card-grid">
-                <article class="card">
-                    <h3>What is being tested?</h3>
-                    <p>
-                        We are validating whether letting <strong>Rust</strong> handle heavy data prep for APD and LAFD 2024 rows
-                        beats a <strong>Python-only</strong> prep pipeline. Both paths filter to {{ ctx.experiment.year_filter }},
-                        engineer the same time/district/priority features, and hand identical Parquet schemas to the Python modeling layer.
-                    </p>
-                </article>
-                <article class="card">
-                    <h3>Is there value in using Rust?</h3>
-                    <p>
-                        Rust wins if it boosts throughput, lowers analyst/compute cost, and keeps modeling metrics aligned with Python.
-                        The sections below show runtime, accuracy, recall, and resource stories from this 2024 run.
-                    </p>
-                </article>
-                <article class="card">
-                    <h3>How should we interpret this run?</h3>
-                    <p>
-                        Treat this as a controlled, laptop-scale experiment. Once we are happy with 2024 performance and storytelling,
-                        we can reuse the same layout for multi-year or full-volume tabs (e.g., “2024”, “2022–2024”, “Full”).
-                    </p>
-                </article>
+                {% for card in ctx.key_questions.cards %}
+                    <article class="card">
+                        <h3>{{ card.title }}</h3>
+                        <p>{{ card.body }}</p>
+                    </article>
+                {% endfor %}
             </div>
         </section>
 
-        <section id="pipelines" class="panel">
-            <h2>Pipelines Compared ({{ ctx.experiment.year_filter }} only)</h2>
-            <div class="card-grid two-columns">
+        <section class="section" id="pipelines">
+            <h2>Control vs Variant Pipelines</h2>
+            <div class="card-grid">
                 <article class="card">
-                    <h3>Control – Python-only pipeline</h3>
+                    <h3>{{ ctx.pipelines.control.title }}</h3>
+                    <p>{{ ctx.pipelines.control.description }}</p>
                     <ul>
-                        <li>Load raw CSVs, filter to 2024, enforce {{ ctx.experiment.row_cap_label }}.</li>
-                        <li>Feature engineering + sampling performed entirely in Python.</li>
-                        <li>Emit Parquet + JSON benchmarks; train Logistic + XGBoost models in Python.</li>
+                        {% for step in ctx.pipelines.control.steps %}
+                            <li>{{ step }}</li>
+                        {% endfor %}
                     </ul>
                 </article>
                 <article class="card">
-                    <h3>Experiment – Rust prep + Python models</h3>
+                    <h3>{{ ctx.pipelines.variant.title }}</h3>
+                    <p>{{ ctx.pipelines.variant.description }}</p>
                     <ul>
-                        <li>Rust (Polars) streams the same CSVs, filters to 2024, and enforces the cap.</li>
-                        <li>Feature engineering parity with the control path, but compiled + multi-threaded.</li>
-                        <li>Python reuses the exact feature schema for modeling, so metrics are directly comparable.</li>
+                        {% for step in ctx.pipelines.variant.steps %}
+                            <li>{{ step }}</li>
+                        {% endfor %}
                     </ul>
                 </article>
             </div>
         </section>
 
-        <section id="performance" class="panel">
-            <h2>2024 Results – Performance & Cost</h2>
-            <p class="narrative">
-                Prep throughput and model accuracy below come from the latest artifacts on disk (or the baked sample if you have not run the pipelines yet).
-                Use these numbers to decide whether Rust is saving enough analyst time to justify rollout.
-            </p>
+        <section class="section" id="performance">
+            <h2>Performance and Cost Signals</h2>
+            <p>Tables capture prep throughput while cards summarize learning loops for downstream model metrics and cost.</p>
             <div class="card-grid">
-                <div class="card">
-                    <h2>Rust Prep Throughput</h2>
-                    {% if let Some(prep) = ctx.prep %}
-                        <div class="metric">{{ prep.apd_seconds_label() }}s</div>
-                        <p>APD feature table ({{ prep.apd_rows }} rows)</p>
-                        <small class="meta">Parquet → {{ prep.apd_output_hint() }}</small>
-                        <div class="metric">{{ prep.lafd_seconds_label() }}s</div>
-                        <p>LAFD response table ({{ prep.lafd_rows }} rows)</p>
-                        <small class="meta">Parquet → {{ prep.lafd_output_hint() }}</small>
-                    {% else %}
-                        <p>Run <code>rust_prep</code> to populate <code>prep_rust_bench.json</code>.</p>
-                    {% endif %}
-                </div>
-                <div class="card">
-                    <h2>APD Recall & AUC</h2>
+                {% for table in ctx.performance_tables %}
+                    <div class="table-card">
+                        <h3>{{ table.title }}</h3>
+                        <p class="highlight">{{ table.rows_label }}</p>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Pipeline</th>
+                                    <th>Wall Time</th>
+                                    <th>Throughput</th>
+                                    <th>Delta</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in table.stats %}
+                                    <tr>
+                                        <td>{{ row.label }}</td>
+                                        <td>{% if let Some(value) = row.wall_time %}{{ value }}{% else %}-{% endif %}</td>
+                                        <td>{% if let Some(value) = row.throughput %}{{ value }}{% else %}-{% endif %}</td>
+                                        <td><span class="delta-badge">{{ row.delta }}</span></td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <div class="card-grid" style="margin-top: 24px;">
+                {% if let Some(cost) = ctx.cost_impact %}
+                    <article class="card">
+                        <h3>Time and Cost Impact</h3>
+                        <p><strong>Minutes per run:</strong> {{ cost.minutes_saved }}</p>
+                        <p><strong>Cost delta per run:</strong> {{ cost.cost_saved_per_run }}</p>
+                        <p><strong>Annual @ {{ cost.runs_per_day }} runs/day:</strong> {{ cost.annual_cost_delta }}</p>
+                        <p>{{ cost.status }}</p>
+                    </article>
+                {% else %}
+                    <article class="card">
+                        <h3>Time and Cost Impact</h3>
+                        <p>We estimate cost deltas as soon as both prep pipelines plus the cost model artifacts exist.</p>
+                    </article>
+                {% endif %}
+                <article class="card">
+                    <h3>APD Model Snapshot</h3>
                     {% if let Some(apd) = ctx.apd %}
-                        <div class="metric">{{ apd.xgb_auc_label() }}</div>
-                        <p>XGBoost · Logistic baseline: {{ apd.logistic_auc_label() }}</p>
-                        <small>Accuracy: XGBoost {{ apd.xgb_accuracy_pct() }}% | Logistic {{ apd.logistic_accuracy_pct() }}%</small>
-                        <small>F1: XGBoost {{ apd.xgb_f1_pct() }}% | Logistic {{ apd.logistic_f1_pct() }}%</small>
-                        <small>Recall: XGBoost {{ apd.xgb_recall_pct() }}% | Logistic {{ apd.logistic_recall_pct() }}%</small>
+                        <p>XGBoost AUC <span class="highlight">{{ apd.xgb_auc_label() }}</span> vs logistic <span class="highlight">{{ apd.logistic_auc_label() }}</span>.</p>
+                        <p>Accuracy {{ apd.xgb_accuracy_pct() }}% (XGB) and {{ apd.logistic_accuracy_pct() }}% (Logistic).</p>
                     {% else %}
-                        <p>Awaiting <code>py_model/src/train.py</code> outputs.</p>
+                        <p>Train APD models to populate ROC-AUC and accuracy.</p>
                     {% endif %}
-                </div>
-                <div class="card">
-                    <h2>LAFD Regression</h2>
+                </article>
+                <article class="card">
+                    <h3>LAFD Regression Snapshot</h3>
                     {% if let Some(lafd) = ctx.lafd %}
-                        <div class="metric">{{ lafd.mae_label() }}s</div>
-                        <p>MAE · RMSE {{ lafd.rmse_label() }}s · R<sup>2</sup> {{ lafd.r2_label() }}</p>
+                        <p>MAE <span class="highlight">{{ lafd.mae_label() }} s</span> · RMSE {{ lafd.rmse_label() }} s · R^2 {{ lafd.r2_label() }}.</p>
                         {% if let Some(bucket) = lafd.bucket_summary() %}
-                            <small>
-                                Bucket classifier accuracy {{ bucket.accuracy }}% | F1 {{ bucket.f1 }}%
-                                {% if let Some(recall) = bucket.recall %}
-                                    | Recall {{ recall }}%
-                                {% endif %}
-                            </small>
+                            <p>Bucket classifier accuracy {{ bucket.accuracy }}% · F1 {{ bucket.f1 }}%.</p>
                         {% endif %}
                     {% else %}
-                        <p>Train the regression model to populate metrics.</p>
+                        <p>Train the LAFD regression plus bucket models to display this block.</p>
                     {% endif %}
-                </div>
-            </div>
-            <div class="panel" style="margin-top: 24px;">
-                <h3>Live Comparisons</h3>
-                <div id="apd-chart"></div>
-                <div id="lafd-chart"></div>
-                <p class="narrative">
-                    The charts pull directly from <code>/api/metrics</code>. Wire that endpoint into additional dashboards once you run fresh experiments.
-                </p>
+                </article>
             </div>
         </section>
 
-        {% if let Some(apd) = ctx.apd %}
-            <section id="data-quality" class="panel">
-                <h2>2024 Results – Data Quality</h2>
-                <p class="narrative">
-                    Train / validation / test splits are reported for each APD model so you can confirm metric parity between pipelines.
-                    The test split powers the hero numbers above.
-                </p>
-                <div class="split-grid">
-                    {% for model in apd.model_cards() %}
-                        <div class="split-card">
-                            <h3>{{ model.label }} splits</h3>
+        <section class="section" id="validation-health">
+            <h2>Train, Validation, and Test Health</h2>
+            <p>Each dataset runs training, validation, and testing splits so we can see whether the experiment is under or overfitting.</p>
+            <div class="card-grid">
+                {% if let Some(apd) = ctx.apd %}
+                    {% for table in apd.tables %}
+                        <article class="card">
+                            <h3>{{ table.model_name }}</h3>
+                            <p>{{ table.status }}</p>
+                            {% if table.rows.len() > 0 %}
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Phase</th>
+                                            <th>AUC</th>
+                                            <th>Accuracy</th>
+                                            <th>F1</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for row in table.rows %}
+                                            <tr>
+                                                <td>{{ row.phase }}</td>
+                                                <td>
+                                                    {% if let Some(value) = row.auc %}
+                                                        {{ value }}
+                                                    {% else %}
+                                                        -
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if let Some(value) = row.accuracy %}
+                                                        {{ value }}
+                                                    {% else %}
+                                                        -
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if let Some(value) = row.f1 %}
+                                                        {{ value }}
+                                                    {% else %}
+                                                        -
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            {% else %}
+                                <p>Split metrics will show up after the next training run.</p>
+                            {% endif %}
+                        </article>
+                    {% endfor %}
+                {% else %}
+                    <article class="card">
+                        <h3>APD Splits</h3>
+                        <p>Train the APD models to populate split diagnostics.</p>
+                    </article>
+                {% endif %}
+
+                {% if let Some(lafd) = ctx.lafd %}
+                    <article class="card">
+                        <h3>{{ lafd.regression_table.model_name }}</h3>
+                        <p>{{ lafd.regression_table.status }}</p>
+                        {% if lafd.regression_table.rows.len() > 0 %}
                             <table>
                                 <thead>
                                     <tr>
-                                        <th>Split</th>
-                                        <th>Recall</th>
-                                        <th>F1</th>
-                                        <th>Accuracy</th>
-                                        <th>AUC</th>
+                                        <th>Phase</th>
+                                        <th>MAE</th>
+                                        <th>RMSE</th>
+                                        <th>R^2</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {% for split in model.split_rows() %}
+                                    {% for row in lafd.regression_table.rows %}
                                         <tr>
-                                            <td>{{ split.split_label() }}</td>
-                                            <td>{{ split.recall_pct() }}%</td>
-                                            <td>{{ split.f1_pct() }}%</td>
-                                            <td>{{ split.accuracy_pct() }}%</td>
-                                            <td>{{ split.auc_label() }}</td>
+                                            <td>{{ row.phase }}</td>
+                                            <td>
+                                                {% if let Some(value) = row.mae %}
+                                                    {{ value }}
+                                                {% else %}
+                                                    -
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if let Some(value) = row.rmse %}
+                                                    {{ value }}
+                                                {% else %}
+                                                    -
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if let Some(value) = row.r2 %}
+                                                    {{ value }}
+                                                {% else %}
+                                                    -
+                                                {% endif %}
+                                            </td>
                                         </tr>
                                     {% endfor %}
                                 </tbody>
                             </table>
-                        </div>
-                    {% endfor %}
-                </div>
-            </section>
-        {% endif %}
-
-        <section id="robustness" class="panel">
-            <h2>2024 Results – Robustness & Repeatability</h2>
-            <p class="narrative">
-                Benchmark hooks append every prep/model run to <code>benchmarks/prep_history_2024.json</code> and <code>benchmarks/model_history_2024.json</code>.
-                Once you capture a few runs (e.g., 5 repetitions per pipeline), summarize runtime mean ± stddev and surface boxplots here.
-                For now, treat this section as the to-do list for your next session.
-            </p>
+                        {% else %}
+                            <p>Awaiting regression split metrics.</p>
+                        {% endif %}
+                    </article>
+                    {% if let Some(bucket) = lafd.bucket_table %}
+                        <article class="card">
+                            <h3>{{ bucket.model_name }}</h3>
+                            <p>{{ bucket.status }}</p>
+                            {% if bucket.rows.len() > 0 %}
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Phase</th>
+                                            <th>AUC</th>
+                                            <th>Accuracy</th>
+                                            <th>F1</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for row in bucket.rows %}
+                                            <tr>
+                                                <td>{{ row.phase }}</td>
+                                                <td>
+                                                    {% if let Some(value) = row.auc %}
+                                                        {{ value }}
+                                                    {% else %}
+                                                        -
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if let Some(value) = row.accuracy %}
+                                                        {{ value }}
+                                                    {% else %}
+                                                        -
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if let Some(value) = row.f1 %}
+                                                        {{ value }}
+                                                    {% else %}
+                                                        -
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            {% else %}
+                                <p>Bucket splits will appear after the classifier runs.</p>
+                            {% endif %}
+                        </article>
+                    {% endif %}
+                {% else %}
+                    <article class="card">
+                        <h3>LAFD Splits</h3>
+                        <p>Train the LAFD models to analyze split health.</p>
+                    </article>
+                {% endif %}
+            </div>
         </section>
 
-        <section id="methods" class="panel">
-            <h2>Methods & Assumptions (2024 phase)</h2>
-            <ul>
-                <li><strong>Data scope:</strong> {{ ctx.experiment.dataset_scope }} filtered to calendar year {{ ctx.experiment.year_filter }}.</li>
-                <li><strong>Row cap:</strong> {{ ctx.experiment.row_cap_label }} to keep the laptop well under memory limits.</li>
-                <li><strong>Feature set:</strong> reduced columns covering IDs, timestamps, districts, call/incident types, priority, and response time derivations.</li>
-                <li><strong>Pipelines:</strong> Control is {{ ctx.experiment.control_label }}; experiment is {{ ctx.experiment.experiment_label }}.</li>
-                <li><strong>Models:</strong> Logistic + XGBoost classifiers for APD, XGBoost regression + optional bucket classifier for LAFD.</li>
-                <li><strong>Cost model:</strong> <code>config/cost_model.json</code> stores the analyst + compute-rate assumptions for translating runtime into dollars.</li>
+        <section class="section" id="data-quality">
+            <h2>Data Quality and Feature Equivalence</h2>
+            <p>{{ ctx.data_quality.status }}</p>
+            <div class="card-grid">
+                <article class="card">
+                    <h3>APD Columns</h3>
+                    {% if ctx.data_quality.show_apd %}
+                        <table class="quality-table">
+                            <thead>
+                                <tr>
+                                    <th>Column</th>
+                                    <th>Py Nulls</th>
+                                    <th>Rust Nulls</th>
+                                    <th>Py Distinct</th>
+                                    <th>Rust Distinct</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in ctx.data_quality.apd %}
+                                    <tr class="{% if row.highlighted %}alert{% endif %}">
+                                        <td>{{ row.column }}</td>
+                                        <td>
+                                            {% if let Some(value) = row.python_nulls %}
+                                                {{ value }}
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if let Some(value) = row.rust_nulls %}
+                                                {{ value }}
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if let Some(value) = row.python_distinct %}
+                                                {{ value }}
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if let Some(value) = row.rust_distinct %}
+                                                {{ value }}
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <p>Run rust_prep and the Python control validator to capture APD feature stats.</p>
+                    {% endif %}
+                </article>
+                <article class="card">
+                    <h3>LAFD Columns</h3>
+                    {% if ctx.data_quality.show_lafd %}
+                        <table class="quality-table">
+                            <thead>
+                                <tr>
+                                    <th>Column</th>
+                                    <th>Py Nulls</th>
+                                    <th>Rust Nulls</th>
+                                    <th>Py Distinct</th>
+                                    <th>Rust Distinct</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in ctx.data_quality.lafd %}
+                                    <tr class="{% if row.highlighted %}alert{% endif %}">
+                                        <td>{{ row.column }}</td>
+                                        <td>
+                                            {% if let Some(value) = row.python_nulls %}
+                                                {{ value }}
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if let Some(value) = row.rust_nulls %}
+                                                {{ value }}
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if let Some(value) = row.python_distinct %}
+                                                {{ value }}
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if let Some(value) = row.rust_distinct %}
+                                                {{ value }}
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <p>Run validation on LAFD features to populate this table.</p>
+                    {% endif %}
+                </article>
+            </div>
+        </section>
+
+        <section class="section" id="robustness">
+            <h2>Robustness and Repeatability</h2>
+            {% if let Some(robustness) = ctx.robustness %}
+                <p>{{ robustness.summary }}</p>
+                <div class="card-grid">
+                    <article class="card">
+                        <h3>Runtime Variance</h3>
+                        <p>Runs: {% if let Some(value) = robustness.runs %}{{ value }}{% else %}-{% endif %} · Rows: {% if let Some(value) = robustness.rows %}{{ value }}{% else %}-{% endif %}</p>
+                        <p>
+                            {% if let Some(py) = robustness.python %}
+                                Python mean {{ py.label }} s (sigma {{ py.variance }} s)
+                            {% else %}
+                                Python variance pending
+                            {% endif %}
+                        </p>
+                        <p>
+                            {% if let Some(rs) = robustness.rust %}
+                                Rust mean {{ rs.label }} s (sigma {{ rs.variance }} s)
+                            {% else %}
+                                Rust variance pending
+                            {% endif %}
+                        </p>
+                    </article>
+                    <article class="card">
+                        <h3>Scaling Samples</h3>
+                        {% if robustness.has_scaling %}
+                            <ul class="scaling-list">
+                                {% for point in robustness.scaling %}
+                                    <li>
+                                        {{ point.rows_label }} ·
+                                        {% if let Some(value) = point.python_label %}
+                                            {{ value }}
+                                        {% else %}
+                                            Py -
+                                        {% endif %}
+                                        ·
+                                        {% if let Some(value) = point.rust_label %}
+                                            {{ value }}
+                                        {% else %}
+                                            Rust -
+                                        {% endif %}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p>Record a few sample sizes to show how each stack scales.</p>
+                        {% endif %}
+                    </article>
+                </div>
+            {% else %}
+                <p>Capture at least two runs per pipeline to display variance and scaling behaviour.</p>
+            {% endif %}
+        </section>
+
+        <section class="section" id="live-metrics">
+            <h2>Live Metric Feeds</h2>
+            <div class="charts-grid">
+                <div id="apd-chart"></div>
+                <div id="lafd-chart"></div>
+            </div>
+            <p>The JavaScript below reads the base64 blob embedded by Rust so another tool (or person) can hit /api/metrics without touching the filesystem.</p>
+        </section>
+
+        <section class="section" id="methods">
+            <h2>Methods and Assumptions</h2>
+            <ul class="methods-list">
+                {% for bullet in ctx.methods.bullets %}
+                    <li>{{ bullet }}</li>
+                {% endfor %}
             </ul>
         </section>
     </div>
@@ -354,25 +637,25 @@
                 {
                     x: ['Logistic Regression', 'XGBoost'],
                     y: [
-                        metrics.apd.logistic_regression?.auc ?? 0,
-                        metrics.apd.xgboost?.auc ?? 0
+                        metrics.apd?.logistic_regression?.testing?.auc ?? 0,
+                        metrics.apd?.xgboost?.testing?.auc ?? 0
                     ],
                     type: 'bar',
                     marker: { color: ['#6bc1ff', '#ff9e4f'] }
                 }
             ];
             const apdLayout = {
-                title: 'APD ROC-AUC',
+                title: 'APD Test ROC-AUC',
                 yaxis: { range: [0, 1], tickformat: '.2f' },
                 paper_bgcolor: 'rgba(0,0,0,0)',
                 plot_bgcolor: 'rgba(0,0,0,0)',
-                font: { color: '#f2f5ff' }
+                font: { color: '#f5f7ff' }
             };
             Plotly.newPlot('apd-chart', apdData, apdLayout, { displayModeBar: false });
         }
 
         if (metrics?.lafd?.regression) {
-            const reg = metrics.lafd.regression;
+            const reg = metrics.lafd.regression.testing || {};
             const lafdData = [
                 {
                     x: ['MAE', 'RMSE'],
@@ -382,10 +665,10 @@
                 }
             ];
             const lafdLayout = {
-                title: 'LAFD Error (seconds)',
+                title: 'LAFD Test Error (seconds)',
                 paper_bgcolor: 'rgba(0,0,0,0)',
                 plot_bgcolor: 'rgba(0,0,0,0)',
-                font: { color: '#f2f5ff' }
+                font: { color: '#f5f7ff' }
             };
             Plotly.newPlot('lafd-chart', lafdData, lafdLayout, { displayModeBar: false });
         }

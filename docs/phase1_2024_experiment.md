@@ -32,7 +32,7 @@ Both pipelines ingest the same 2024-filtered slices and emit Parquet + JSON arti
 - **Filter logic**:  
   - APD → `Response Year == 2024` (or `year(Response Datetime) == 2024`).  
   - LAFD → `year(Incident Creation Time (GMT)) == 2024`.
-- **Row caps**: start with **≤1.5M rows per dataset** (stratified sampling if needed). Raise the cap only after runtime/memory headroom is proven.
+- **Row caps**: both 2024 slices sit under 500k rows (APD ?380k, LAFD ?420k). Enforce a hard **500k-row ceiling** per dataset; revisit only if future refreshes exceed that volume.
 - **Schema subset**: use the reduced column list from `docs/data_profile.md` to minimize IO.
 
 ## 4. Pipeline Details
@@ -41,7 +41,7 @@ Both pipelines ingest the same 2024-filtered slices and emit Parquet + JSON arti
 
 1. Load raw CSVs with pandas/polars.
 2. Filter to 2024 rows and select the agreed subset of columns.
-3. Optional stratified sampling to respect the 1.5M-row cap.
+3. Optional stratified sampling to respect the 500k-row cap (only needed if future refreshes exceed today?s volumes).
 4. Feature engineering parity with Rust: timestamp parsing, duration math, categorical normalization, stratification keys, etc.
 5. Emit Parquet feature tables + prep benchmark JSON → `data/processed/...`.
 6. Log run metadata to `benchmarks/prep_history_2024.json` (see Section 6).
@@ -55,7 +55,7 @@ cargo run --release -- ^
   --apd-file ..\data\raw\APD_Computer_Aided_Dispatch_Incidents_20251101.csv ^
   --lafd-file ..\data\raw\LAFD_Response_Metrics_-_Raw_Data_20251101.csv ^
   --year-filter 2024 ^
-  --row-cap 1500000 ^
+  --row-cap 500000 ^
   --output-dir ..\data\processed
 ```
 
@@ -89,9 +89,9 @@ Outputs (per dataset, per pipeline type):
 
 ## 5. Sampling & Capacity Strategy
 
-- Begin with the full 2024 slice. If `rows > 1.5M`, perform stratified sampling by `priority` (APD) or `dispatch status` (LAFD) to maintain class balance.
+- Begin with the full 2024 slice. If a refresh exceeds **500k rows**, perform stratified sampling by `priority` (APD) or `dispatch status` (LAFD) to maintain class balance while honoring the cap.
 - All sampling must be reproducible: persist RNG seeds per run and log them with the benchmark records.
-- If both pipelines stay under 15 minutes and <24 GB RAM on the reference laptop, raise the cap to 2.5M rows and repeat the measurements.
+- If later years creep past 500k rows and still keep runtimes <15 minutes / <24 GB RAM, document the new peak and bump the cap incrementally (for example 750k) before attempting multi-million-row trials.
 
 ## 6. Benchmark & Cost Logging
 

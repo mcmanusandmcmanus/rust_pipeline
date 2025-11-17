@@ -52,7 +52,7 @@ If the JSON artifacts aren’t present, the dashboard shows its built-in sample 
 
 Planning the Rust-vs-Python bake-off on the 2024 subset? Follow `docs/phase1_2024_experiment.md`. Key points:
 
-- Filter both APD and LAFD to **calendar year 2024** before any heavy lifting; keep the initial cap around **1.5M rows per dataset** until you verify headroom.
+- Filter both APD and LAFD to **calendar year 2024** before any heavy lifting; both slices sit below ~500k rows, so enforce a **500k per-dataset cap** unless future refreshes exceed that volume.
 - Treat `py_prep/` + `py_model/` as the control path and `rust_prep/` + `py_model/` as the experimental path; both must emit schema-compatible Parquet + JSON so the modeling layer stays unchanged.
 - Log every prep/model run to `benchmarks/*_history_2024.json` with runtime, resource, cost, and git metadata; those records feed the dashboard and the cost model.
 - Update the dashboard copy + `/api/metrics` payloads to label “2024-only experiment” and surface `pipeline_type`/`year_filter` metadata once both artifact sets exist.

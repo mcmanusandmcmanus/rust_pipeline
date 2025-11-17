@@ -138,6 +138,7 @@ impl AppState {
 
         let template = DashboardTemplateData {
             hardware: HardwareSpec::default(),
+            experiment: ExperimentMeta::phase_one(),
             prep: prep_summary,
             apd: apd_summary,
             lafd: lafd_summary,
@@ -202,6 +203,7 @@ struct DashboardTemplate<'a> {
 #[derive(Serialize)]
 struct DashboardTemplateData {
     hardware: HardwareSpec,
+    experiment: ExperimentMeta,
     prep: Option<PrepSummary>,
     apd: Option<ApdSummary>,
     lafd: Option<LafdSummary>,
@@ -215,6 +217,31 @@ struct HardwareSpec {
     ram: &'static str,
     tagline: &'static str,
     narrative: &'static str,
+}
+
+#[derive(Serialize)]
+struct ExperimentMeta {
+    year_filter: &'static str,
+    dataset_scope: &'static str,
+    control_label: &'static str,
+    experiment_label: &'static str,
+    row_cap_label: &'static str,
+    hero_title: &'static str,
+    hero_subtitle: &'static str,
+}
+
+impl ExperimentMeta {
+    fn phase_one() -> Self {
+        Self {
+            year_filter: "2024",
+            dataset_scope: "APD CAD + LAFD Response",
+            control_label: "Python-only prep pipeline",
+            experiment_label: "Rust prep + Python models",
+            row_cap_label: "500k rows per dataset cap",
+            hero_title: "Rust vs Python for Public-Safety Data Prep (2024 Experiment)",
+            hero_subtitle: "Comparing a Python-only feature pipeline with a Rust prep + Python modeling pipeline on APD CAD and LAFD response data filtered to 2024.",
+        }
+    }
 }
 
 impl Default for HardwareSpec {
@@ -423,6 +450,10 @@ impl ModelCard {
 
     fn recall_pct(&self) -> String {
         format!("{:.1}", self.recall * 100.0)
+    }
+
+    fn split_rows(&self) -> &[SplitDisplay] {
+        &self.splits
     }
 }
 

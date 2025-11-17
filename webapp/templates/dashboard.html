@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Rust Pipeline Benchmark</title>
+    <title>Rust vs Python · 2024 Experiment</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600&display=swap" rel="stylesheet" />
@@ -21,21 +21,40 @@
             background: radial-gradient(circle at top, rgba(28, 72, 157, 0.35), transparent 55%), #050910;
         }
         .wrapper {
-            max-width: 1100px;
+            max-width: 1200px;
             margin: 0 auto;
             padding: 56px 24px 80px;
         }
-        h1, h2 {
+        h1, h2, h3 {
             font-weight: 600;
             letter-spacing: -0.5px;
         }
         .hero {
             margin-bottom: 40px;
         }
+        .eyebrow {
+            font-size: 0.95rem;
+            letter-spacing: 0.08rem;
+            text-transform: uppercase;
+            opacity: 0.7;
+        }
         .tagline {
             font-size: 1.15rem;
             opacity: 0.85;
             margin-top: 8px;
+        }
+        .chip-row {
+            margin-top: 18px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .chip {
+            padding: 6px 14px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            font-size: 0.85rem;
         }
         .card-grid {
             display: grid;
@@ -46,26 +65,26 @@
             background: rgba(255, 255, 255, 0.04);
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 18px;
-            padding: 20px;
+            padding: 22px;
             backdrop-filter: blur(18px);
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.35);
             min-height: 160px;
+        }
+        .panel {
+            margin-top: 48px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 24px;
+            padding: 28px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
         }
         .metric {
             font-size: 2.25rem;
             margin: 12px 0 4px;
         }
-        .chart-wrapper {
-            margin-top: 40px;
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 24px;
-            padding: 24px;
-            border: 1px solid rgba(255, 255, 255, 0.06);
-        }
         .narrative {
-            margin-top: 20px;
+            margin-top: 16px;
             font-size: 1rem;
-            line-height: 1.5;
+            line-height: 1.6;
             opacity: 0.85;
         }
         .notice {
@@ -117,14 +136,26 @@
             padding: 4px 0;
             border-top: 1px solid rgba(255, 255, 255, 0.06);
         }
+        .two-columns {
+            grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+        }
+        ul {
+            padding-left: 20px;
+        }
     </style>
 </head>
 <body>
     <div class="wrapper">
         <header class="hero">
-            <p>Hardware: {{ ctx.hardware.cpu }} &middot; {{ ctx.hardware.ram }}</p>
-            <h1>{{ ctx.hardware.tagline }}</h1>
-            <p class="tagline">{{ ctx.hardware.narrative }}</p>
+            <div class="eyebrow">{{ ctx.experiment.dataset_scope }} · Year {{ ctx.experiment.year_filter }}</div>
+            <h1>{{ ctx.experiment.hero_title }}</h1>
+            <p class="tagline">{{ ctx.experiment.hero_subtitle }}</p>
+            <div class="chip-row">
+                <span class="chip">Data: {{ ctx.experiment.dataset_scope }}</span>
+                <span class="chip">Pipelines: {{ ctx.experiment.control_label }} vs {{ ctx.experiment.experiment_label }}</span>
+                <span class="chip">Machine: {{ ctx.hardware.cpu }} · {{ ctx.hardware.ram }}</span>
+                <span class="chip">{{ ctx.experiment.row_cap_label }}</span>
+            </div>
             {% if ctx.sample_mode %}
                 <p class="notice">
                     Showing baked sample metrics. Point <code>PREP_BENCH_PATH</code>, <code>APD_METRICS_PATH</code>, and
@@ -133,56 +164,122 @@
             {% endif %}
         </header>
 
-        <section class="card-grid">
-            <div class="card">
-                <h2>Rust Prep Throughput</h2>
-                {% if let Some(prep) = ctx.prep %}
-                    <div class="metric">{{ prep.apd_seconds_label() }}s</div>
-                    <p>APD feature table ({{ prep.apd_rows }} rows)</p>
-                    <small class="meta">Parquet → {{ prep.apd_output_hint() }}</small>
-                    <div class="metric">{{ prep.lafd_seconds_label() }}s</div>
-                    <p>LAFD response table ({{ prep.lafd_rows }} rows)</p>
-                    <small class="meta">Parquet → {{ prep.lafd_output_hint() }}</small>
-                {% else %}
-                    <p>Run <code>rust_prep</code> to populate <code>prep_rust_bench.json</code>.</p>
-                {% endif %}
+        <section id="key-questions">
+            <h2>Key Questions for this Experiment</h2>
+            <div class="card-grid">
+                <article class="card">
+                    <h3>What is being tested?</h3>
+                    <p>
+                        We are validating whether letting <strong>Rust</strong> handle heavy data prep for APD and LAFD 2024 rows
+                        beats a <strong>Python-only</strong> prep pipeline. Both paths filter to {{ ctx.experiment.year_filter }},
+                        engineer the same time/district/priority features, and hand identical Parquet schemas to the Python modeling layer.
+                    </p>
+                </article>
+                <article class="card">
+                    <h3>Is there value in using Rust?</h3>
+                    <p>
+                        Rust wins if it boosts throughput, lowers analyst/compute cost, and keeps modeling metrics aligned with Python.
+                        The sections below show runtime, accuracy, recall, and resource stories from this 2024 run.
+                    </p>
+                </article>
+                <article class="card">
+                    <h3>How should we interpret this run?</h3>
+                    <p>
+                        Treat this as a controlled, laptop-scale experiment. Once we are happy with 2024 performance and storytelling,
+                        we can reuse the same layout for multi-year or full-volume tabs (e.g., “2024”, “2022–2024”, “Full”).
+                    </p>
+                </article>
             </div>
-            <div class="card">
-                <h2>APD AUC</h2>
-                {% if let Some(apd) = ctx.apd %}
-                    <div class="metric">{{ apd.xgb_auc_label() }}</div>
-                    <p>XGBoost &middot; Logistic baseline: {{ apd.logistic_auc_label() }}</p>
-                    <small>Accuracy: XGBoost {{ apd.xgb_accuracy_pct() }}% | Logistic {{ apd.logistic_accuracy_pct() }}%</small>
-                    <small>F1: XGBoost {{ apd.xgb_f1_pct() }}% | Logistic {{ apd.logistic_f1_pct() }}%</small>
-                    <small>Recall: XGBoost {{ apd.xgb_recall_pct() }}% | Logistic {{ apd.logistic_recall_pct() }}%</small>
-                {% else %}
-                    <p>Awaiting <code>py_model/src/train.py</code> outputs.</p>
-                {% endif %}
+        </section>
+
+        <section id="pipelines" class="panel">
+            <h2>Pipelines Compared ({{ ctx.experiment.year_filter }} only)</h2>
+            <div class="card-grid two-columns">
+                <article class="card">
+                    <h3>Control – Python-only pipeline</h3>
+                    <ul>
+                        <li>Load raw CSVs, filter to 2024, enforce {{ ctx.experiment.row_cap_label }}.</li>
+                        <li>Feature engineering + sampling performed entirely in Python.</li>
+                        <li>Emit Parquet + JSON benchmarks; train Logistic + XGBoost models in Python.</li>
+                    </ul>
+                </article>
+                <article class="card">
+                    <h3>Experiment – Rust prep + Python models</h3>
+                    <ul>
+                        <li>Rust (Polars) streams the same CSVs, filters to 2024, and enforces the cap.</li>
+                        <li>Feature engineering parity with the control path, but compiled + multi-threaded.</li>
+                        <li>Python reuses the exact feature schema for modeling, so metrics are directly comparable.</li>
+                    </ul>
+                </article>
             </div>
-            <div class="card">
-                <h2>LAFD Regression</h2>
-                {% if let Some(lafd) = ctx.lafd %}
-                    <div class="metric">{{ lafd.mae_label() }}s</div>
-                    <p>MAE &middot; RMSE {{ lafd.rmse_label() }}s &middot; R<sup>2</sup> {{ lafd.r2_label() }}</p>
-                    {% if let Some(bucket) = lafd.bucket_summary() %}
-                        <small>
-                            Bucket classifier accuracy {{ bucket.accuracy }}% | F1 {{ bucket.f1 }}%
-                            {% if let Some(recall) = bucket.recall %}
-                                | Recall {{ recall }}%
-                            {% endif %}
-                        </small>
+        </section>
+
+        <section id="performance" class="panel">
+            <h2>2024 Results – Performance & Cost</h2>
+            <p class="narrative">
+                Prep throughput and model accuracy below come from the latest artifacts on disk (or the baked sample if you have not run the pipelines yet).
+                Use these numbers to decide whether Rust is saving enough analyst time to justify rollout.
+            </p>
+            <div class="card-grid">
+                <div class="card">
+                    <h2>Rust Prep Throughput</h2>
+                    {% if let Some(prep) = ctx.prep %}
+                        <div class="metric">{{ prep.apd_seconds_label() }}s</div>
+                        <p>APD feature table ({{ prep.apd_rows }} rows)</p>
+                        <small class="meta">Parquet → {{ prep.apd_output_hint() }}</small>
+                        <div class="metric">{{ prep.lafd_seconds_label() }}s</div>
+                        <p>LAFD response table ({{ prep.lafd_rows }} rows)</p>
+                        <small class="meta">Parquet → {{ prep.lafd_output_hint() }}</small>
+                    {% else %}
+                        <p>Run <code>rust_prep</code> to populate <code>prep_rust_bench.json</code>.</p>
                     {% endif %}
-                {% else %}
-                    <p>Train the regression model to populate metrics.</p>
-                {% endif %}
+                </div>
+                <div class="card">
+                    <h2>APD Recall & AUC</h2>
+                    {% if let Some(apd) = ctx.apd %}
+                        <div class="metric">{{ apd.xgb_auc_label() }}</div>
+                        <p>XGBoost · Logistic baseline: {{ apd.logistic_auc_label() }}</p>
+                        <small>Accuracy: XGBoost {{ apd.xgb_accuracy_pct() }}% | Logistic {{ apd.logistic_accuracy_pct() }}%</small>
+                        <small>F1: XGBoost {{ apd.xgb_f1_pct() }}% | Logistic {{ apd.logistic_f1_pct() }}%</small>
+                        <small>Recall: XGBoost {{ apd.xgb_recall_pct() }}% | Logistic {{ apd.logistic_recall_pct() }}%</small>
+                    {% else %}
+                        <p>Awaiting <code>py_model/src/train.py</code> outputs.</p>
+                    {% endif %}
+                </div>
+                <div class="card">
+                    <h2>LAFD Regression</h2>
+                    {% if let Some(lafd) = ctx.lafd %}
+                        <div class="metric">{{ lafd.mae_label() }}s</div>
+                        <p>MAE · RMSE {{ lafd.rmse_label() }}s · R<sup>2</sup> {{ lafd.r2_label() }}</p>
+                        {% if let Some(bucket) = lafd.bucket_summary() %}
+                            <small>
+                                Bucket classifier accuracy {{ bucket.accuracy }}% | F1 {{ bucket.f1 }}%
+                                {% if let Some(recall) = bucket.recall %}
+                                    | Recall {{ recall }}%
+                                {% endif %}
+                            </small>
+                        {% endif %}
+                    {% else %}
+                        <p>Train the regression model to populate metrics.</p>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="panel" style="margin-top: 24px;">
+                <h3>Live Comparisons</h3>
+                <div id="apd-chart"></div>
+                <div id="lafd-chart"></div>
+                <p class="narrative">
+                    The charts pull directly from <code>/api/metrics</code>. Wire that endpoint into additional dashboards once you run fresh experiments.
+                </p>
             </div>
         </section>
 
         {% if let Some(apd) = ctx.apd %}
-            <section class="chart-wrapper">
-                <h2>APD Train · Validation · Test Metrics</h2>
+            <section id="data-quality" class="panel">
+                <h2>2024 Results – Data Quality</h2>
                 <p class="narrative">
-                    Each card shows recall, F1, accuracy, and AUC for the three data splits. Test metrics power the hero numbers above.
+                    Train / validation / test splits are reported for each APD model so you can confirm metric parity between pipelines.
+                    The test split powers the hero numbers above.
                 </p>
                 <div class="split-grid">
                     {% for model in apd.model_cards() %}
@@ -199,7 +296,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {% for split in model.splits %}
+                                    {% for split in model.split_rows() %}
                                         <tr>
                                             <td>{{ split.split_label() }}</td>
                                             <td>{{ split.recall_pct() }}%</td>
@@ -216,14 +313,25 @@
             </section>
         {% endif %}
 
-        <section class="chart-wrapper">
-            <h2>Live Comparisons</h2>
-            <div id="apd-chart"></div>
-            <div id="lafd-chart"></div>
+        <section id="robustness" class="panel">
+            <h2>2024 Results – Robustness & Repeatability</h2>
             <p class="narrative">
-                The dashboard pulls directly from the JSON artifacts that Rust + Python drop under <code>data/processed/</code>
-                and <code>py_model/artifacts/</code>. Hit <code>/api/metrics</code> if you want to wire these results into another dashboard or LLM agent.
+                Benchmark hooks append every prep/model run to <code>benchmarks/prep_history_2024.json</code> and <code>benchmarks/model_history_2024.json</code>.
+                Once you capture a few runs (e.g., 5 repetitions per pipeline), summarize runtime mean ± stddev and surface boxplots here.
+                For now, treat this section as the to-do list for your next session.
             </p>
+        </section>
+
+        <section id="methods" class="panel">
+            <h2>Methods & Assumptions (2024 phase)</h2>
+            <ul>
+                <li><strong>Data scope:</strong> {{ ctx.experiment.dataset_scope }} filtered to calendar year {{ ctx.experiment.year_filter }}.</li>
+                <li><strong>Row cap:</strong> {{ ctx.experiment.row_cap_label }} to keep the laptop well under memory limits.</li>
+                <li><strong>Feature set:</strong> reduced columns covering IDs, timestamps, districts, call/incident types, priority, and response time derivations.</li>
+                <li><strong>Pipelines:</strong> Control is {{ ctx.experiment.control_label }}; experiment is {{ ctx.experiment.experiment_label }}.</li>
+                <li><strong>Models:</strong> Logistic + XGBoost classifiers for APD, XGBoost regression + optional bucket classifier for LAFD.</li>
+                <li><strong>Cost model:</strong> <code>config/cost_model.json</code> stores the analyst + compute-rate assumptions for translating runtime into dollars.</li>
+            </ul>
         </section>
     </div>
 

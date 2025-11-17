@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import matplotlib
 
@@ -33,7 +33,6 @@ from sklearn.metrics import (
     accuracy_score,
     classification_report,
     f1_score,
-    recall_score,
     mean_absolute_error,
     mean_squared_error,
     r2_score,
@@ -49,31 +48,19 @@ console = Console()
 APD_NUMERIC = [
     "response_minutes",
     "call_duration_minutes",
-    "on_scene_seconds",
-    "response_time_seconds",
     "units_arrived",
     "priority_level_ord",
-    "council_district",
 ]
 APD_CATEGORICAL = [
-    "priority_label",
     "mental_health_flag",
     "incident_type",
-    "response_day_of_week",
-    "response_month",
-    "initial_problem_category",
-    "final_problem_category",
     "call_disposition",
-    "sector",
 ]
 
 LAFD_NUMERIC = [
     "dispatch_delay_s",
     "enroute_delay_s",
     "arrival_delay_s",
-    "total_response_s",
-    "creation_hour",
-    "dispatch_hour",
     "dispatch_sequence",
     "first_in_district",
 ]
@@ -81,7 +68,6 @@ LAFD_CATEGORICAL = [
     "unit_type",
     "dispatch_status",
     "emergency_dispatch_code",
-    "ppe_level",
 ]
 
 
@@ -154,26 +140,13 @@ def train_apd(
 
     X = apd_df[APD_NUMERIC + APD_CATEGORICAL]
     y = apd_df["report_written"]
-    X_temp, X_test, y_temp, y_test = train_test_split(
+    X_train, X_test, y_train, y_test = train_test_split(
         X,
         y,
         test_size=0.2,
         stratify=y,
         random_state=seed,
     )
-    X_train, X_val, y_train, y_val = train_test_split(
-        X_temp,
-        y_temp,
-        test_size=0.25,
-        stratify=y_temp,
-        random_state=seed,
-    )
-
-    splits = {
-        "train": (X_train, y_train),
-        "validation": (X_val, y_val),
-        "test": (X_test, y_test),
-    }
 
     logit_model = Pipeline(
         steps=[
@@ -213,20 +186,8 @@ def train_apd(
     logit_model.fit(X_train, y_train)
     xgb_model.fit(X_train, y_train)
 
-    logit_metrics = evaluate_classifier(
-        logit_model,
-        splits,
-        artifacts / "apd_roc_logit.png",
-        "Logistic",
-        seed,
-    )
-    xgb_metrics = evaluate_classifier(
-        xgb_model,
-        splits,
-        artifacts / "apd_roc_xgb.png",
-        "XGBoost",
-        seed,
-    )
+    logit_metrics = evaluate_classifier(logit_model, X_test, y_test, artifacts / "apd_roc_logit.png", "Logistic", seed)
+    xgb_metrics = evaluate_classifier(xgb_model, X_test, y_test, artifacts / "apd_roc_xgb.png", "XGBoost", seed)
 
     # Feature importance from the XGBoost core estimator
     feature_names = xgb_model.named_steps["prep"].get_feature_names_out()
@@ -245,31 +206,29 @@ def train_apd(
         "xgboost": xgb_metrics,
         "class_balance": {
             "train_pos_pct": float(y_train.mean()),
-            "validation_pos_pct": float(y_val.mean()),
             "test_pos_pct": float(y_test.mean()),
         },
         "records_used": len(apd_df),
         "features": APD_NUMERIC + APD_CATEGORICAL,
     }
     save_json(artifacts / "apd_metrics.json", metrics_payload)
-    console.log("[green]✓ APD models trained[/green]")
+    console.log("[green]APD models trained[/green]")
     return metrics_payload
 
 
 def evaluate_classifier(
     model: Pipeline,
-    splits: Dict[str, Tuple[pd.DataFrame, pd.Series]],
+    X_test: pd.DataFrame,
+    y_test: pd.Series,
     roc_path: Path,
     label: str,
     seed: int,
 ) -> dict:
-    split_metrics = {
-        split: score_split(model, X_split, y_split)
-        for split, (X_split, y_split) in splits.items()
-    }
-    X_test, y_test = splits["test"]
     probs = model.predict_proba(X_test)[:, 1]
     preds = (probs >= 0.5).astype(int)
+    auc = roc_auc_score(y_test, probs)
+    acc = accuracy_score(y_test, preds)
+    f1 = f1_score(y_test, preds)
     report = classification_report(y_test, preds, output_dict=True)
 
     RocCurveDisplay.from_predictions(y_test, probs, name=label)
@@ -287,34 +246,13 @@ def evaluate_classifier(
     plt.close()
 
     return {
-        "auc": float(split_metrics["test"]["auc"]),
-        "accuracy": float(split_metrics["test"]["accuracy"]),
-        "f1": float(split_metrics["test"]["f1"]),
-        "recall": float(split_metrics["test"]["recall"]),
-        "splits": split_metrics,
+        "auc": float(auc),
+        "accuracy": float(acc),
+        "f1": float(f1),
         "classification_report": report,
         "roc_curve": roc_path.as_posix(),
         "confusion_matrix": cm_path.as_posix(),
         "seed": seed,
-    }
-
-
-def score_split(model: Pipeline, X_split: pd.DataFrame, y_split: pd.Series) -> dict:
-    probs = model.predict_proba(X_split)[:, 1]
-    preds = (probs >= 0.5).astype(int)
-    auc = roc_auc_score(y_split, probs)
-    acc = accuracy_score(y_split, preds)
-    f1 = f1_score(y_split, preds)
-    report = classification_report(y_split, preds, output_dict=True)
-    recall = report.get("1", {}).get("recall", 0.0)
-    support = report.get("1", {}).get("support", 0.0)
-    return {
-        "auc": float(auc),
-        "accuracy": float(acc),
-        "f1": float(f1),
-        "recall": float(recall),
-        "support": int(support),
-        "samples": int(len(y_split)),
     }
 
 
@@ -410,7 +348,7 @@ def train_lafd(
         "features": LAFD_NUMERIC + LAFD_CATEGORICAL,
     }
     save_json(artifacts / "lafd_metrics.json", payload)
-    console.log("[green]✓ LAFD regression + classifier complete[/green]")
+    console.log("[green]LAFD regression + classifier complete[/green]")
     return payload
 
 
@@ -419,7 +357,9 @@ def train_lafd_bucket_classifier(df: pd.DataFrame, artifacts: Path, seed: int) -
     if dropna_df.empty:
         return {}
     X = dropna_df[LAFD_NUMERIC + LAFD_CATEGORICAL]
-    y = dropna_df["response_bucket"]
+    bucket_series = dropna_df["response_bucket"].astype("category")
+    bucket_labels = list(bucket_series.cat.categories)
+    y = bucket_series.cat.codes
 
     X_train, X_test, y_train, y_test = train_test_split(
         X,
@@ -440,7 +380,7 @@ def train_lafd_bucket_classifier(df: pd.DataFrame, artifacts: Path, seed: int) -
                     subsample=0.85,
                     colsample_bytree=0.8,
                     objective="multi:softprob",
-                    num_class=len(y.unique()),
+                    num_class=len(bucket_labels),
                     tree_method="hist",
                     n_jobs=8,
                     random_state=seed,
@@ -452,8 +392,9 @@ def train_lafd_bucket_classifier(df: pd.DataFrame, artifacts: Path, seed: int) -
     preds = clf.predict(X_test)
     acc = accuracy_score(y_test, preds)
     f1 = f1_score(y_test, preds, average="macro")
-    recall = recall_score(y_test, preds, average="macro")
-    cm = ConfusionMatrixDisplay.from_predictions(y_test, preds, cmap="Blues")
+    cm = ConfusionMatrixDisplay.from_predictions(
+        y_test, preds, cmap="Blues", display_labels=bucket_labels
+    )
     plt.title("LAFD Bucket Confusion Matrix")
     plt.tight_layout()
     cm_path = artifacts / "lafd_bucket_confusion.png"
@@ -462,8 +403,8 @@ def train_lafd_bucket_classifier(df: pd.DataFrame, artifacts: Path, seed: int) -
     return {
         "accuracy": float(acc),
         "f1_macro": float(f1),
-        "recall_macro": float(recall),
         "confusion_matrix": cm_path.as_posix(),
+        "labels": bucket_labels,
     }
 
 

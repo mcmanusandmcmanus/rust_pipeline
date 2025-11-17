@@ -2,6 +2,7 @@ use std::{
     collections::HashMap,
     fs::{self, File},
     path::{Path, PathBuf},
+    sync::Arc,
     time::Instant,
 };
 
@@ -37,10 +38,10 @@ struct Cli {
     #[arg(long, default_value = "data/processed")]
     output_dir: PathBuf,
     /// Target APD sample size (rows).
-    #[arg(long, default_value_t = 250_000)]
+    #[arg(long, default_value_t = 120_000)]
     apd_sample: usize,
     /// Target LAFD sample size (rows).
-    #[arg(long, default_value_t = 250_000)]
+    #[arg(long, default_value_t = 120_000)]
     lafd_sample: usize,
     /// Random seed shared across operations.
     #[arg(long, default_value_t = 42)]
@@ -111,6 +112,38 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+fn apd_schema() -> Schema {
+    Schema::from_iter([
+        Field::new("Incident Number".into(), DataType::Int64),
+        Field::new("Incident Type".into(), DataType::String),
+        Field::new("Council District".into(), DataType::Int64),
+        Field::new("Mental Health Flag".into(), DataType::String),
+        Field::new("Priority Level".into(), DataType::String),
+        Field::new("Response Datetime".into(), DataType::String),
+        Field::new("Response Year".into(), DataType::Int64),
+        Field::new("Response Month".into(), DataType::String),
+        Field::new("Response Day of Week".into(), DataType::String),
+        Field::new("Response Hour".into(), DataType::Int64),
+        Field::new("First Unit Arrived Datetime".into(), DataType::String),
+        Field::new("Call Closed Datetime".into(), DataType::String),
+        Field::new("Sector".into(), DataType::String),
+        Field::new("Initial Problem Description".into(), DataType::String),
+        Field::new("Initial Problem Category".into(), DataType::String),
+        Field::new("Final Problem Description".into(), DataType::String),
+        Field::new("Final Problem Category".into(), DataType::String),
+        Field::new("Number of Units Arrived".into(), DataType::Int64),
+        Field::new("Unit Time on Scene".into(), DataType::String),
+        Field::new("Call Disposition Description".into(), DataType::String),
+        Field::new("Report Written Flag".into(), DataType::String),
+        Field::new("Response Time".into(), DataType::String),
+        Field::new("Officer Injured/Killed Count".into(), DataType::Int64),
+        Field::new("Subject Injured/Killed Count".into(), DataType::Int64),
+        Field::new("Other Injured/Killed Count".into(), DataType::Int64),
+        Field::new("Geo ID".into(), DataType::Int64),
+        Field::new("Census Block Group".into(), DataType::Int64),
+    ])
+}
+
 fn prep_apd(cli: &Cli, pb: &ProgressBar) -> Result<PrepResult> {
     pb.println("→ Parsing APD dispatch CSV");
     let dt_options = StrptimeOptions {
@@ -122,30 +155,22 @@ fn prep_apd(cli: &Cli, pb: &ProgressBar) -> Result<PrepResult> {
 
     let sample_cols = vec![
         "report_written",
-        "priority_label",
         "priority_level_ord",
         "units_arrived",
         "mental_health_flag",
         "incident_type",
-        "response_hour",
-        "response_day_of_week",
-        "response_month",
-        "initial_problem_category",
-        "final_problem_category",
         "call_disposition",
-        "sector",
-        "council_district",
         "response_minutes",
         "call_duration_minutes",
-        "on_scene_seconds",
-        "response_time_seconds",
     ];
 
     let start = Instant::now();
-    let lazy = LazyCsvReader::new(&cli.apd_file)
+    let apd_path = cli.apd_file.to_string_lossy().into_owned();
+    let lazy = LazyCsvReader::new(PlPath::new(&apd_path))
         .with_has_header(true)
-        .with_ignore_errors(true)
+        .with_ignore_errors(false)
         .with_infer_schema_length(Some(2048))
+        .with_schema(Some(Arc::new(apd_schema())))
         .finish()
         .with_context(|| format!("unable to read {}", cli.apd_file.display()))?;
 
@@ -159,57 +184,40 @@ fn prep_apd(cli: &Cli, pb: &ProgressBar) -> Result<PrepResult> {
         .with_columns([
             col("Incident Type").alias("incident_type"),
             col("Mental Health Flag").alias("mental_health_flag"),
-            col("Response Day of Week").alias("response_day_of_week"),
-            col("Response Month").alias("response_month"),
-            col("Sector").alias("sector"),
-            col("Initial Problem Category").alias("initial_problem_category"),
-            col("Final Problem Category").alias("final_problem_category"),
             col("Call Disposition Description").alias("call_disposition"),
-            col("Priority Level").alias("priority_label"),
-            col("Council District")
-                .cast(DataType::Int32)
-                .alias("council_district"),
-            col("Response Hour")
-                .cast(DataType::Int32)
-                .alias("response_hour"),
             col("Number of Units Arrived")
                 .cast(DataType::Int32)
                 .alias("units_arrived"),
         ])
         .with_columns([
             col("Priority Level")
+                .cast(DataType::String)
                 .str()
                 .replace_all(lit("Priority "), lit(""), true)
                 .cast(DataType::Int32)
                 .alias("priority_level_ord"),
             col("Report Written Flag")
+                .cast(DataType::String)
                 .str()
                 .to_lowercase()
                 .eq(lit("yes"))
                 .cast(DataType::UInt8)
                 .alias("report_written"),
             col("Response Datetime")
+                .cast(DataType::String)
                 .str()
                 .to_datetime(None, None, dt_options.clone(), lit("raise"))
                 .alias("response_dt"),
             col("First Unit Arrived Datetime")
+                .cast(DataType::String)
                 .str()
                 .to_datetime(None, None, dt_options.clone(), lit("raise"))
                 .alias("arrival_dt"),
             col("Call Closed Datetime")
+                .cast(DataType::String)
                 .str()
                 .to_datetime(None, None, dt_options, lit("raise"))
                 .alias("closed_dt"),
-            col("Unit Time on Scene")
-                .str()
-                .replace_all(lit(","), lit(""), true)
-                .cast(DataType::Int32)
-                .alias("on_scene_seconds"),
-            col("Response Time")
-                .str()
-                .replace_all(lit(","), lit(""), true)
-                .cast(DataType::Int32)
-                .alias("response_time_seconds"),
         ])
         .with_columns([
             col("response_dt")
@@ -245,29 +253,23 @@ fn prep_apd(cli: &Cli, pb: &ProgressBar) -> Result<PrepResult> {
                 .collect::<Vec<_>>(),
         );
 
-    let apd_frame = processed.collect()?;
+    let apd_frame = processed
+        .collect()
+        .with_context(|| "collecting APD feature frame".to_string())?;
     let filtered_rows = apd_frame.height();
     let apd_sample = stratified_sample(
         &apd_frame,
         &["report_written", "priority_level_ord"],
         cli.apd_sample,
         cli.seed,
-    )?;
+    )
+    .with_context(|| "sampling APD frame".to_string())?;
     let output_path = cli.output_dir.join("apd_sample.parquet");
     write_parquet(&apd_sample, &output_path)?;
 
     let categories = build_category_map(
         &apd_sample,
-        &[
-            "incident_type",
-            "mental_health_flag",
-            "response_day_of_week",
-            "response_month",
-            "initial_problem_category",
-            "final_problem_category",
-            "call_disposition",
-            "sector",
-        ],
+        &["incident_type", "mental_health_flag", "call_disposition"],
     )?;
 
     Ok(PrepResult {
@@ -292,25 +294,23 @@ fn prep_lafd(cli: &Cli, pb: &ProgressBar) -> Result<PrepResult> {
         exact: true,
         cache: true,
     };
-    let sample_cols = vec![
+    let feature_cols = vec![
         "unit_type",
         "dispatch_status",
         "emergency_dispatch_code",
-        "ppe_level",
         "first_in_district",
         "dispatch_sequence",
         "dispatch_delay_s",
         "enroute_delay_s",
         "arrival_delay_s",
         "total_response_s",
-        "creation_hour",
-        "dispatch_hour",
     ];
 
     let start = Instant::now();
-    let lazy = LazyCsvReader::new(&cli.lafd_file)
+    let lafd_path = cli.lafd_file.to_string_lossy().into_owned();
+    let lazy = LazyCsvReader::new(PlPath::new(&lafd_path))
         .with_has_header(true)
-        .with_ignore_errors(true)
+        .with_ignore_errors(false)
         .with_infer_schema_length(Some(512))
         .finish()
         .with_context(|| format!("unable to read {}", cli.lafd_file.display()))?;
@@ -322,7 +322,6 @@ fn prep_lafd(cli: &Cli, pb: &ProgressBar) -> Result<PrepResult> {
             col("Unit Type").alias("unit_type"),
             col("Dispatch Status").alias("dispatch_status"),
             col("Emergency Dispatch Code").alias("emergency_dispatch_code"),
-            col("PPE Level").alias("ppe_level"),
             col("Dispatch Sequence")
                 .cast(DataType::Int32)
                 .alias("dispatch_sequence"),
@@ -395,42 +394,41 @@ fn prep_lafd(cli: &Cli, pb: &ProgressBar) -> Result<PrepResult> {
             ((col("on_scene_ms") - col("creation_ms")).cast(DataType::Float64) / lit(1000.0))
                 .alias("total_response_s"),
         ])
-        .with_columns([
-            col("creation_dt").dt().hour().alias("creation_hour"),
-            col("dispatch_dt").dt().hour().alias("dispatch_hour"),
-        ])
         .filter(
             col("dispatch_delay_s")
                 .is_not_null()
                 .and(col("dispatch_delay_s").gt_eq(lit(0)))
                 .and(col("total_response_s").gt(lit(0))),
         )
-        .select(
-            sample_cols
-                .iter()
-                .map(|&name| col(name))
-                .collect::<Vec<_>>(),
-        );
+        .select(vec![
+            col("Unit Type").alias("unit_type"),
+            col("Dispatch Status").alias("dispatch_status"),
+            col("Emergency Dispatch Code").alias("emergency_dispatch_code"),
+            col("first_in_district"),
+            col("dispatch_sequence"),
+            col("dispatch_delay_s"),
+            col("enroute_delay_s"),
+            col("arrival_delay_s"),
+            col("total_response_s"),
+        ]);
 
-    let lafd_frame = processed.collect()?;
+    let lafd_frame = processed
+        .collect()
+        .with_context(|| "collecting LAFD feature frame".to_string())?;
     let filtered_rows = lafd_frame.height();
     let lafd_sample = stratified_sample(
         &lafd_frame,
         &["unit_type"],
         cli.lafd_sample,
         cli.seed.wrapping_mul(11),
-    )?;
+    )
+    .with_context(|| "sampling LAFD frame".to_string())?;
     let output_path = cli.output_dir.join("lafd_sample.parquet");
     write_parquet(&lafd_sample, &output_path)?;
 
     let categories = build_category_map(
         &lafd_sample,
-        &[
-            "unit_type",
-            "dispatch_status",
-            "emergency_dispatch_code",
-            "ppe_level",
-        ],
+        &["unit_type", "dispatch_status", "emergency_dispatch_code"],
     )?;
 
     Ok(PrepResult {
@@ -441,7 +439,7 @@ fn prep_lafd(cli: &Cli, pb: &ProgressBar) -> Result<PrepResult> {
             rows_sampled: lafd_sample.height(),
             duration_ms: start.elapsed().as_millis(),
             output_path: output_path.display().to_string(),
-            feature_columns: sample_cols.iter().map(|s| s.to_string()).collect(),
+            feature_columns: feature_cols.iter().map(|s| s.to_string()).collect(),
         },
         categories,
     })
@@ -457,7 +455,7 @@ fn stratified_sample(
         return Ok(df.clone());
     }
 
-    let partitions = df.partition_by_stable(columns.iter().copied(), false)?;
+    let partitions = df.partition_by_stable(columns.iter().copied(), true)?;
     let total_rows = df.height();
     let total_groups = partitions.len();
     let mut collected = Vec::with_capacity(total_groups);
@@ -539,13 +537,18 @@ fn build_category_map(df: &DataFrame, columns: &[&str]) -> Result<HashMap<String
             .with_context(|| format!("missing column {column} for category map"))?;
         let mut counts: HashMap<String, usize> = HashMap::new();
         for idx in 0..series.len() {
-            let value = series
-                .str_value(idx)
-                .with_context(|| format!("failed to read string value for {column}"))?;
-            if value.as_ref() == "null" {
+            let value = match series.get(idx) {
+                Ok(value) => value,
+                Err(_) => continue,
+            };
+            if value.is_null() {
                 continue;
             }
-            *counts.entry(value.into_owned()).or_insert(0) += 1;
+            let text = value.to_string();
+            if text.is_empty() {
+                continue;
+            }
+            *counts.entry(text).or_insert(0) += 1;
         }
         let mut entries: Vec<(String, usize)> = counts.into_iter().collect();
         entries.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));

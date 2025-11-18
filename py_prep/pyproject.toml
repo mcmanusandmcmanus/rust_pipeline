@@ -1,0 +1,15 @@
+[project]
+name = "rust-pipeline-control-prep"
+version = "0.1.0"
+description = "Python control pipeline and reporting helpers for the Rust vs Python experiment."
+requires-python = ">=3.10"
+dependencies = [
+    "typer>=0.12.0",
+    "rich>=13.7.0",
+    "pandas>=2.2.0",
+    "pyarrow>=15.0.0",
+]
+
+[tool.rye]
+managed = false
+

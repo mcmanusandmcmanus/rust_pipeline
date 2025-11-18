@@ -32,19 +32,19 @@ Both pipelines ingest the same 2024-filtered slices and emit Parquet + JSON arti
 - **Filter logic**:  
   - APD → `Response Year == 2024` (or `year(Response Datetime) == 2024`).  
   - LAFD → `year(Incident Creation Time (GMT)) == 2024`.
-- **Row caps**: both 2024 slices sit under 500k rows (APD ?380k, LAFD ?420k). Enforce a hard **500k-row ceiling** per dataset; revisit only if future refreshes exceed that volume.
+- **Row caps**: both 2024 slices sit well below 500k rows (APD ≈380k, LAFD ≈420k). Enforce a **hard 500k-row ceiling** per dataset; only revisit if a future year adds volume.
 - **Schema subset**: use the reduced column list from `docs/data_profile.md` to minimize IO.
 
 ## 4. Pipeline Details
 
 ### 4.1 Python Prep (`py_prep/`)
 
-1. Load raw CSVs with pandas/polars.
+1. Load raw CSVs with pandas/polars (via `python3 -m py_prep.cli control-prep --apd-sample 120000 --lafd-sample 120000 --seed 42` for the default demo).
 2. Filter to 2024 rows and select the agreed subset of columns.
-3. Optional stratified sampling to respect the 500k-row cap (only needed if future refreshes exceed today?s volumes).
+3. Optional stratified sampling to respect the 500k-row cap (only needed if future refreshes exceed today’s volumes).
 4. Feature engineering parity with Rust: timestamp parsing, duration math, categorical normalization, stratification keys, etc.
 5. Emit Parquet feature tables + prep benchmark JSON → `data/processed/...`.
-6. Log run metadata to `benchmarks/prep_history_2024.json` (see Section 6).
+6. Log run metadata to `benchmarks/prep_history_2024.json` (see Section 6) via the CLI’s built-in history append or `ingest-run` for external benchmarks.
 
 ### 4.2 Rust Prep (`rust_prep/`)
 
@@ -89,9 +89,9 @@ Outputs (per dataset, per pipeline type):
 
 ## 5. Sampling & Capacity Strategy
 
-- Begin with the full 2024 slice. If a refresh exceeds **500k rows**, perform stratified sampling by `priority` (APD) or `dispatch status` (LAFD) to maintain class balance while honoring the cap.
+- Begin with the full 2024 slice. If a future refresh exceeds **500k rows**, perform stratified sampling by `priority` (APD) or `dispatch status` (LAFD) to maintain class balance while honoring the cap.
 - All sampling must be reproducible: persist RNG seeds per run and log them with the benchmark records.
-- If later years creep past 500k rows and still keep runtimes <15 minutes / <24 GB RAM, document the new peak and bump the cap incrementally (for example 750k) before attempting multi-million-row trials.
+- If a later year pushes past 500k rows and still stays under 15 minutes / 24 GB RAM, document the new observed peak and consider raising the cap incrementally (e.g., 750k) before leaping to multi-million row trials.
 
 ## 6. Benchmark & Cost Logging
 
@@ -118,7 +118,7 @@ Use these logs to populate the dashboard and the executive summary once phase 1 
 
 ## 7. Execution Playbook
 
-1. **Calibrate row caps** – Determine the max 2024 row volume that holds under 32 GB RAM; document the threshold.
+1. **Verify 2024 volumes** – Confirm each filtered dataset still falls below the 500k hard cap and document the observed counts + seeds.
 2. **Run both pipelines** – Execute control and variable prep for APD/LAFD; capture artifacts + logs.
 3. **Repeatability** – Run 3–5 repetitions per combination (dataset × pipeline) to capture variance.
 4. **Model training** – Feed each feature set through `py_model` to collect metrics.

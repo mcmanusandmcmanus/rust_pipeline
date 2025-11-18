@@ -1,0 +1,54 @@
+[
+  {
+    "run_id": "python_prep-apd-2025-11-18T03:10:09.560375+00:00",
+    "pipeline_type": "python_prep",
+    "dataset": "apd",
+    "rows_input": 1896832,
+    "rows_output": 120000,
+    "duration_seconds": 34.754,
+    "cpu_peak_pct": null,
+    "mem_peak_gb": null,
+    "row_cap_applied": true,
+    "cost_estimate_usd": 0.00434425,
+    "git_rev": "unknown"
+  },
+  {
+    "run_id": "python_prep-lafd-2025-11-18T03:10:09.560375+00:00",
+    "pipeline_type": "python_prep",
+    "dataset": "lafd",
+    "rows_input": 6090465,
+    "rows_output": 120000,
+    "duration_seconds": 26.116,
+    "cpu_peak_pct": null,
+    "mem_peak_gb": null,
+    "row_cap_applied": true,
+    "cost_estimate_usd": 0.0032645,
+    "git_rev": "unknown"
+  },
+  {
+    "run_id": "rust_prep-apd-2025-11-17T07:08:02.8721478Z",
+    "pipeline_type": "rust_prep",
+    "dataset": "apd",
+    "rows_input": 1896832,
+    "rows_output": 120000,
+    "duration_seconds": 3.979,
+    "cpu_peak_pct": null,
+    "mem_peak_gb": null,
+    "row_cap_applied": true,
+    "cost_estimate_usd": 0.000497375,
+    "git_rev": "unknown"
+  },
+  {
+    "run_id": "rust_prep-lafd-2025-11-17T07:08:02.8721478Z",
+    "pipeline_type": "rust_prep",
+    "dataset": "lafd",
+    "rows_input": 6090465,
+    "rows_output": 120000,
+    "duration_seconds": 6.819,
+    "cpu_peak_pct": null,
+    "mem_peak_gb": null,
+    "row_cap_applied": true,
+    "cost_estimate_usd": 0.0008523749999999999,
+    "git_rev": "unknown"
+  }
+]

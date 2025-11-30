@@ -46,12 +46,16 @@ struct Cli {
     /// Random seed shared across operations.
     #[arg(long, default_value_t = 42)]
     seed: u64,
+    /// Year filter applied to compatible datasets (e.g., APD Response Year).
+    #[arg(long, default_value_t = 2024)]
+    year_filter: i32,
 }
 
 #[derive(Debug, Serialize, Clone)]
 struct DatasetMetrics {
     name: String,
     source_path: String,
+    year_filter: i32,
     rows_after_filters: usize,
     rows_sampled: usize,
     duration_ms: u128,
@@ -77,23 +81,23 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     fs::create_dir_all(&cli.output_dir)?;
     let pb = setup_progress();
-    pb.println("Starting Rust prep pipeline…");
+    pb.println("Starting Rust prep pipeline");
     let overall_start = Instant::now();
 
     let apd = prep_apd(&cli, &pb).context("failed to prep APD incidents")?;
     pb.println(format!(
-        "✅ APD sample ready at {} ({} rows)",
+        "APD sample ready at {} ({} rows)",
         apd.metrics.output_path, apd.metrics.rows_sampled
     ));
 
     let lafd = prep_lafd(&cli, &pb).context("failed to prep LAFD metrics")?;
     pb.println(format!(
-        "✅ LAFD sample ready at {} ({} rows)",
+        "LAFD sample ready at {} ({} rows)",
         lafd.metrics.output_path, lafd.metrics.rows_sampled
     ));
 
     write_category_maps(&cli.output_dir, &apd.categories, &lafd.categories)?;
-    pb.println("📦 Wrote category_maps.json");
+    pb.println("Wrote category_maps.json");
 
     let benchmark = PrepBenchmark {
         generated_at_utc: OffsetDateTime::now_utc().format(&Rfc3339)?,
@@ -104,10 +108,7 @@ fn main() -> Result<()> {
     };
     let bench_path = cli.output_dir.join("prep_rust_bench.json");
     serde_json::to_writer_pretty(File::create(&bench_path)?, &benchmark)?;
-    pb.println(format!(
-        "📈 Benchmark log saved to {}",
-        bench_path.display()
-    ));
+    pb.println(format!("Benchmark log saved to {}", bench_path.display()));
     pb.finish_with_message("Rust prep finished.");
     Ok(())
 }
@@ -145,7 +146,7 @@ fn apd_schema() -> Schema {
 }
 
 fn prep_apd(cli: &Cli, pb: &ProgressBar) -> Result<PrepResult> {
-    pb.println("→ Parsing APD dispatch CSV");
+    pb.println("Parsing APD dispatch CSV");
     let dt_options = StrptimeOptions {
         format: Some("%Y %b %d %I:%M:%S %p".into()),
         strict: false,
@@ -178,8 +179,7 @@ fn prep_apd(cli: &Cli, pb: &ProgressBar) -> Result<PrepResult> {
         .filter(
             col("Response Year")
                 .cast(DataType::Int32)
-                .gt_eq(lit(2019))
-                .and(col("Response Year").cast(DataType::Int32).lt_eq(lit(2024))),
+                .eq(lit(cli.year_filter)),
         )
         .with_columns([
             col("Incident Type").alias("incident_type"),
@@ -276,6 +276,7 @@ fn prep_apd(cli: &Cli, pb: &ProgressBar) -> Result<PrepResult> {
         metrics: DatasetMetrics {
             name: "apd_dispatch".into(),
             source_path: cli.apd_file.display().to_string(),
+            year_filter: cli.year_filter,
             rows_after_filters: filtered_rows,
             rows_sampled: apd_sample.height(),
             duration_ms: start.elapsed().as_millis(),
@@ -287,7 +288,7 @@ fn prep_apd(cli: &Cli, pb: &ProgressBar) -> Result<PrepResult> {
 }
 
 fn prep_lafd(cli: &Cli, pb: &ProgressBar) -> Result<PrepResult> {
-    pb.println("→ Parsing LAFD response CSV");
+    pb.println("Parsing LAFD response CSV");
     let dt_options = StrptimeOptions {
         format: Some("%Y-%m-%d %H:%M:%S%.f".into()),
         strict: false,
@@ -315,7 +316,7 @@ fn prep_lafd(cli: &Cli, pb: &ProgressBar) -> Result<PrepResult> {
         .finish()
         .with_context(|| format!("unable to read {}", cli.lafd_file.display()))?;
 
-    let synth_date = lit("2024-01-01 ");
+    let synth_date = lit(format!("{}-01-01 ", cli.year_filter));
     let processed = lazy
         .filter(col("On Scene Time (GMT)").is_not_null())
         .with_columns([
@@ -435,6 +436,7 @@ fn prep_lafd(cli: &Cli, pb: &ProgressBar) -> Result<PrepResult> {
         metrics: DatasetMetrics {
             name: "lafd_response".into(),
             source_path: cli.lafd_file.display().to_string(),
+            year_filter: cli.year_filter,
             rows_after_filters: filtered_rows,
             rows_sampled: lafd_sample.height(),
             duration_ms: start.elapsed().as_millis(),

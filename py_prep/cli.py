@@ -28,6 +28,8 @@ DEFAULT_CONTROL_LAFD = DEFAULT_OUTPUT_DIR / "lafd_control_sample.parquet"
 DEFAULT_DATA_QUALITY = DEFAULT_OUTPUT_DIR / "data_quality_summary.json"
 DEFAULT_VARIANCE = DEFAULT_OUTPUT_DIR / "run_variance_summary.json"
 
+YEAR_FILTER = 2024
+
 APD_FEATURE_COLUMNS = [
     "report_written",
     "priority_level_ord",
@@ -83,6 +85,7 @@ app = typer.Typer(help="Python control prep pipeline + reporting helpers.")
 class DatasetMetrics:
     name: str
     source_path: str
+    year_filter: int
     rows_after_filters: int
     rows_sampled: int
     duration_ms: int
@@ -103,12 +106,17 @@ def transform_apd_chunk(chunk: pd.DataFrame) -> pd.DataFrame:
     if chunk.empty:
         return pd.DataFrame(columns=APD_FEATURE_COLUMNS)
     frame = chunk.copy()
-    frame["Response Year"] = pd.to_numeric(frame["Response Year"], errors="coerce")
-    frame = frame[
-        frame["Response Year"].between(2019, 2024, inclusive="both")
-    ]
+    frame["Response Year"] = pd.to_numeric(frame["Response Year"], errors="coerce").astype(
+        "Int64"
+    )
+    response_dt = pd.to_datetime(
+        frame["Response Datetime"], format=APD_DT_FORMAT, errors="coerce"
+    )
+    response_year = frame["Response Year"].fillna(response_dt.dt.year)
+    frame = frame[response_year.eq(YEAR_FILTER)]
     if frame.empty:
         return pd.DataFrame(columns=APD_FEATURE_COLUMNS)
+    response_dt = response_dt.loc[frame.index]
 
     # Normalize categorical columns
     frame["incident_type"] = frame["Incident Type"].astype("string")
@@ -134,9 +142,6 @@ def transform_apd_chunk(chunk: pd.DataFrame) -> pd.DataFrame:
             .astype("uint8", copy=False)
     )
 
-    response_dt = pd.to_datetime(
-        frame["Response Datetime"], format=APD_DT_FORMAT, errors="coerce"
-    )
     arrival_dt = pd.to_datetime(
         frame["First Unit Arrived Datetime"], format=APD_DT_FORMAT, errors="coerce"
     )
@@ -193,7 +198,7 @@ def transform_lafd_chunk(chunk: pd.DataFrame) -> pd.DataFrame:
         frame["First In District"], errors="coerce"
     ).astype("Int32")
 
-    synth_prefix = "2024-01-01 "
+    synth_prefix = f"{YEAR_FILTER}-01-01 "
 
     def to_dt(series: pd.Series) -> pd.Series:
         return pd.to_datetime(
@@ -330,6 +335,7 @@ def prep_apd(
     metrics = DatasetMetrics(
         name="apd_dispatch",
         source_path=str(apd_path),
+        year_filter=YEAR_FILTER,
         rows_after_filters=filtered_rows,
         rows_sampled=len(sampled),
         duration_ms=duration_ms,
@@ -361,6 +367,7 @@ def prep_lafd(
     metrics = DatasetMetrics(
         name="lafd_response",
         source_path=str(lafd_path),
+        year_filter=YEAR_FILTER,
         rows_after_filters=filtered_rows,
         rows_sampled=len(sampled),
         duration_ms=duration_ms,
@@ -410,14 +417,18 @@ def bench_entries(
         duration_seconds = duration_ms / 1000.0
         rows_after = dataset.get("rows_after_filters", 0)
         rows_sampled = dataset.get("rows_sampled", 0)
+        year_filter = dataset.get("year_filter")
         cost_estimate = (duration_seconds / 3600.0) * compute_cost
         entries.append(
             {
                 "run_id": f"{pipeline_type}-{key}-{bench.get('generated_at_utc', 'na')}",
                 "pipeline_type": pipeline_type,
                 "dataset": key,
+                "year_filter": year_filter,
                 "rows_input": rows_after,
+                "rows_input_2024": rows_after if year_filter == YEAR_FILTER else None,
                 "rows_output": rows_sampled,
+                "rows_output_2024": rows_sampled if year_filter == YEAR_FILTER else None,
                 "duration_seconds": duration_seconds,
                 "cpu_peak_pct": None,
                 "mem_peak_gb": None,
